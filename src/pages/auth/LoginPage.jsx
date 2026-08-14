@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import {
   Box,
@@ -258,6 +258,7 @@ export default function LoginPage() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [showPw, setShowPw] = useState(false);
+  const scrollRootRef = useRef(null);
 
   useLoginPageScrollUnlock();
 
@@ -305,6 +306,14 @@ export default function LoginPage() {
     setEmail(demoEmail);
     setPassword(DEMO_PASSWORD);
     clearError();
+
+    // Mobile: form is above demo accounts — scroll up so Sign in is reachable.
+    if (!isDesktop) {
+      requestAnimationFrame(() => {
+        scrollRootRef.current?.scrollTo({ top: 0, behavior: "smooth" });
+        window.scrollTo({ top: 0, behavior: "smooth" });
+      });
+    }
   };
 
   const loginPanel = (
@@ -459,7 +468,7 @@ export default function LoginPage() {
             boxShadow: `0 4px 14px ${brandRgba("primary", 0.35)}`,
           }}
         >
-          {loading ? <CircularProgress size={22} color="inherit" /> : "Sign in"}
+          {loading ? <CircularProgress size={22} color="inherit" /> : "Sign In"}
         </Button>
       </Box>
 
@@ -514,6 +523,7 @@ export default function LoginPage() {
 
   return (
     <Box
+      ref={scrollRootRef}
       component="main"
       sx={{
         position: "fixed",
@@ -564,7 +574,7 @@ export default function LoginPage() {
           sx={{
             width: "100%",
             maxWidth: showDemo ? { xs: 440, md: 920 } : 440,
-            borderRadius: { xs: 3, md: 4 },
+            borderRadius: { xs: 1, md: 2 },
             overflow: "hidden",
             bgcolor: "background.paper",
             boxShadow: isLight
