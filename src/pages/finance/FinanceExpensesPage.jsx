@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { Fragment, useCallback, useEffect, useMemo, useState } from "react";
 import { useLocation } from "react-router-dom";
 import {
   Box,
@@ -24,6 +24,8 @@ import {
   InputLabel,
   Select,
   ListSubheader,
+  Chip,
+  Pagination,
 } from "@mui/material";
 import { alpha, useTheme } from "@mui/material/styles";
 import ReceiptLongIcon from "@mui/icons-material/ReceiptLong";
@@ -53,19 +55,37 @@ import {
   matchesExpenseHighlight,
 } from "../../utils/financeSourceNavigation";
 
-function money(n) {
-  return formatKyats(Number(n || 0));
+const PAGE_SIZE = 50;
+const TABLE_COLUMN_COUNT = 7;
+
+function expenseCategoryLabel(category) {
+  const raw = String(category ?? "").trim();
+  if (!raw) return "-";
+  const sep = raw.includes(" — ") ? " — " : raw.includes(" - ") ? " - " : null;
+  if (!sep) return raw;
+  const [code, ...rest] = raw.split(sep);
+  const name = rest.join(sep).trim();
+  if (!code.trim() || !name) return raw;
+  return `${code.trim()} - ${name}`;
 }
 
-function humanExpenseDate(row) {
-  const date = dayjs(row.expense_date);
-  if (!date.isValid()) return row.expense_date ?? "—";
+function expenseMethodLabel(row) {
+  return (
+    row.transaction_method?.name ??
+    row.payment_method ??
+    row.transaction_method_name ??
+    "-"
+  );
+}
 
-  const enteredAt = dayjs(row.created_at);
-  const dateLabel = date.format("DD MMM YYYY");
-  return enteredAt.isValid()
-    ? `${dateLabel}, ${enteredAt.format("h:mm A")}`
-    : dateLabel;
+function groupExpensesByDate(rows) {
+  const grouped = new Map();
+  rows.forEach((row) => {
+    const key = dayjs(row.expense_date).format("YYYY-MM-DD");
+    if (!grouped.has(key)) grouped.set(key, []);
+    grouped.get(key).push(row);
+  });
+  return [...grouped.entries()].sort(([a], [b]) => b.localeCompare(a));
 }
 
 function emptyForm() {
@@ -105,8 +125,7 @@ export default function FinanceExpensesPage() {
   const canManage = hasPermission(user, "payments.manage");
 
   const [fromDate, setFromDate] = useState(
-    pendingFilters?.from_date ??
-      dayjs().startOf("month").format("YYYY-MM-DD"),
+    pendingFilters?.from_date ?? dayjs().startOf("month").format("YYYY-MM-DD"),
   );
   const [toDate, setToDate] = useState(
     pendingFilters?.to_date ?? dayjs().format("YYYY-MM-DD"),
@@ -118,7 +137,10 @@ export default function FinanceExpensesPage() {
   const [saving, setSaving] = useState(false);
   const [form, setForm] = useState(emptyForm);
   const [expenseCoaRows, setExpenseCoaRows] = useState([]);
-  const [expenseTransactionMethods, setExpenseTransactionMethods] = useState([]);
+  const [expenseTransactionMethods, setExpenseTransactionMethods] = useState(
+    [],
+  );
+  const [page, setPage] = useState(1);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -159,13 +181,37 @@ export default function FinanceExpensesPage() {
     [displayedRows],
   );
 
+  const pageCount = Math.max(1, Math.ceil(displayedRows.length / PAGE_SIZE));
+  const pagedRows = useMemo(() => {
+    const start = (page - 1) * PAGE_SIZE;
+    return displayedRows.slice(start, start + PAGE_SIZE);
+  }, [displayedRows, page]);
+  const groupedExpenses = useMemo(
+    () => groupExpensesByDate(pagedRows),
+    [pagedRows],
+  );
+
+  useEffect(() => {
+    setPage(1);
+  }, [fromDate, toDate, lineSearch]);
+
+  useEffect(() => {
+    if (!pendingHighlight || displayedRows.length === 0) return;
+    const idx = displayedRows.findIndex((row) =>
+      matchesExpenseHighlight(row, pendingHighlight),
+    );
+    if (idx >= 0) {
+      setPage(Math.floor(idx / PAGE_SIZE) + 1);
+    }
+  }, [pendingHighlight, displayedRows]);
+
   const highlightMatch = useMemo(() => {
     if (!pendingHighlight) return null;
     return (
-      displayedRows.find((row) => matchesExpenseHighlight(row, pendingHighlight)) ??
+      pagedRows.find((row) => matchesExpenseHighlight(row, pendingHighlight)) ??
       null
     );
-  }, [displayedRows, pendingHighlight]);
+  }, [pagedRows, pendingHighlight]);
 
   const { rowRef: highlightRowRef, highlightActive } = useFinanceRowHighlight({
     ready: !loading,
@@ -204,8 +250,12 @@ export default function FinanceExpensesPage() {
           if (String(prev.transaction_method_id || "").trim()) {
             return prev;
           }
-          const cash = mList.find((x) => x.is_system && x.ledger_kind === "cash");
-          return cash ? { ...prev, transaction_method_id: String(cash.id) } : prev;
+          const cash = mList.find(
+            (x) => x.is_system && x.ledger_kind === "cash",
+          );
+          return cash
+            ? { ...prev, transaction_method_id: String(cash.id) }
+            : prev;
         });
       } catch (e) {
         if (!cancelled) {
@@ -306,16 +356,7 @@ export default function FinanceExpensesPage() {
   };
 
   return (
-    <Box
-      sx={{
-        p: { xs: 2, md: 3 },
-        pb: 6,
-        width: "100%",
-        maxWidth: { xs: "100%", md: 1320 },
-        mx: "auto",
-        boxSizing: "border-box",
-      }}
-    >
+    <Box>
       <Stack
         direction="row"
         spacing={1.5}
@@ -367,10 +408,10 @@ export default function FinanceExpensesPage() {
       </Stack>
 
       <Alert severity="info" sx={{ mb: 2, borderRadius: 2 }}>
-        Log every operating cost here — utilities, rent, maintenance, cleaning and
-        supplies. Tag each with a <strong>category</strong> and (optionally) a
-        vendor and reference so the totals and reports stay meaningful. Use the
-        filters to review spend by category or date.
+        Log every operating cost here — utilities, rent, maintenance, cleaning
+        and supplies. Tag each with a <strong>category</strong> and (optionally)
+        a vendor and reference so the totals and reports stay meaningful. Use
+        the filters to review spend by category or date.
       </Alert>
 
       {!canManage ? (
@@ -457,7 +498,7 @@ export default function FinanceExpensesPage() {
               Period total (filtered list)
             </Typography>
             <Typography variant="h6" sx={{ fontWeight: 800 }}>
-              {money(periodTotal)}
+              {formatKyats(periodTotal)}
             </Typography>
           </Box>
           <Typography variant="body2" color="text.secondary">
@@ -467,139 +508,149 @@ export default function FinanceExpensesPage() {
         </Stack>
       </Paper>
 
-      <TableContainer
-        component={Paper}
-        variant="outlined"
-        sx={{ borderRadius: 2, maxHeight: { xs: 480, md: "min(70vh, 720px)" } }}
-      >
-        <Table size="small" stickyHeader>
-          <TableHead>
-            <TableRow>
-              <TableCell sx={{ fontWeight: 700 }}>Date</TableCell>
-              <TableCell sx={{ fontWeight: 700 }}>Reference</TableCell>
-              <TableCell sx={{ fontWeight: 700 }}>Vendor / payee</TableCell>
-              <TableCell sx={{ fontWeight: 700 }}>Category</TableCell>
-              <TableCell sx={{ fontWeight: 700 }}>Memo</TableCell>
-              <TableCell sx={{ fontWeight: 700 }}>Method</TableCell>
-              <TableCell sx={{ fontWeight: 700 }}>Branch</TableCell>
-              <TableCell align="right" sx={{ fontWeight: 700 }}>
-                Debit (amount)
-              </TableCell>
-              <TableCell sx={{ fontWeight: 700 }}>Entered by</TableCell>
-            </TableRow>
-          </TableHead>
-          <TableBody>
-            {loading ? (
+      {loading ? (
+        <CircularProgress size={24} />
+      ) : groupedExpenses.length === 0 ? (
+        <Alert severity="info">
+          No expenses in this period. Use <strong>Record expense</strong> to add
+          rent, utilities, and other costs.
+        </Alert>
+      ) : (
+        <TableContainer
+          component={Paper}
+          variant="outlined"
+          sx={{ borderRadius: 2 }}
+        >
+          <Table size="small" stickyHeader>
+            <TableHead>
               <TableRow>
-                <TableCell colSpan={9} align="center" sx={{ py: 6 }}>
-                  <CircularProgress size={28} />
+                <TableCell sx={{ fontWeight: 700 }}>Reference #</TableCell>
+                <TableCell sx={{ fontWeight: 700 }}>Category</TableCell>
+                <TableCell sx={{ fontWeight: 700 }}>Vendor / payee</TableCell>
+                <TableCell sx={{ fontWeight: 700 }}>Memo</TableCell>
+                <TableCell sx={{ fontWeight: 700 }}>Method</TableCell>
+                <TableCell sx={{ fontWeight: 700 }}>Status</TableCell>
+                <TableCell sx={{ fontWeight: 700 }} align="right">
+                  Amount
                 </TableCell>
               </TableRow>
-            ) : null}
-            {!loading && displayedRows.length === 0 ? (
-              <TableRow>
-                <TableCell colSpan={9}>
-                  <Typography
-                    color="text.secondary"
-                    sx={{ py: 3, textAlign: "center" }}
-                  >
-                    No expenses in this period. Use{" "}
-                    <strong>Record expense</strong> to add rent, utilities, and
-                    other costs.
-                  </Typography>
-                </TableCell>
-              </TableRow>
-            ) : null}
-            {!loading &&
-              displayedRows.map((r) => {
-                const isHighlightRow = matchesExpenseHighlight(r, pendingHighlight);
-                const highlightReference =
-                  isHighlightRow &&
-                  highlightActive &&
-                  pendingHighlight?.highlightColumn === "reference";
-                const highlightSourceId =
-                  isHighlightRow &&
-                  highlightActive &&
-                  (pendingHighlight?.highlightColumn === "sourceId" ||
-                    pendingHighlight?.highlightColumn === "row");
-
+            </TableHead>
+            <TableBody>
+              {groupedExpenses.map(([dateKey, dateRows]) => {
+                const sum = dateRows.reduce(
+                  (total, row) => total + Number(row.amount || 0),
+                  0,
+                );
                 return (
-                <TableRow
-                  key={r.id}
-                  hover
-                  ref={isHighlightRow ? highlightRowRef : undefined}
-                >
-                  <TableCell sx={financeHighlightCellSx(highlightSourceId)}>
-                    {humanExpenseDate(r)}
-                    <Typography
-                      component="span"
-                      variant="caption"
+                  <Fragment key={dateKey}>
+                    <TableRow
                       sx={{
-                        display: "block",
-                        color: "text.secondary",
-                        fontVariantNumeric: "tabular-nums",
+                        bgcolor: alpha(theme.palette.primary.main, 0.06),
+                        "& td": { borderBottomColor: "divider", py: 1 },
                       }}
                     >
-                      ID #{r.id}
-                    </Typography>
-                  </TableCell>
-                  <TableCell sx={financeHighlightCellSx(highlightReference)}>
-                    {r.reference_number ?? "—"}
-                  </TableCell>
-                  <TableCell>{r.vendor_name ?? "—"}</TableCell>
-                  <TableCell
-                    sx={{
-                      maxWidth: 180,
-                      whiteSpace: "nowrap",
-                      overflow: "hidden",
-                      textOverflow: "ellipsis",
-                    }}
-                  >
-                    {r.category}
-                  </TableCell>
-                  <TableCell
-                    sx={{
-                      maxWidth: 220,
-                      whiteSpace: "nowrap",
-                      overflow: "hidden",
-                      textOverflow: "ellipsis",
-                    }}
-                  >
-                    {r.description ?? "—"}
-                  </TableCell>
-                  <TableCell>{r.payment_method ?? "—"}</TableCell>
-                  <TableCell>
-                    {r.branch?.name ?? (r.branch_id ? `#${r.branch_id}` : "—")}
-                  </TableCell>
-                  <TableCell
-                    align="right"
-                    sx={{ fontVariantNumeric: "tabular-nums", fontWeight: 600 }}
-                  >
-                    {money(r.amount)}
-                  </TableCell>
-                  <TableCell>{r.creator?.name ?? "—"}</TableCell>
-                </TableRow>
-              );
+                      <TableCell colSpan={TABLE_COLUMN_COUNT}>
+                        <Stack
+                          direction="row"
+                          justifyContent="space-between"
+                          alignItems="center"
+                          flexWrap="wrap"
+                          gap={1}
+                        >
+                          <Typography fontWeight={700}>
+                            {dayjs(dateKey).format("D MMM YYYY")}
+                          </Typography>
+                          <Typography variant="body2" color="text.secondary">
+                            {dateRows.length} line
+                            {dateRows.length === 1 ? "" : "s"} •{" "}
+                            {formatKyats(sum)}
+                          </Typography>
+                        </Stack>
+                      </TableCell>
+                    </TableRow>
+                    {dateRows.map((row) => {
+                      const isHighlightRow = matchesExpenseHighlight(
+                        row,
+                        pendingHighlight,
+                      );
+                      const highlightReference =
+                        isHighlightRow &&
+                        highlightActive &&
+                        pendingHighlight?.highlightColumn === "reference";
+                      const highlightSourceId =
+                        isHighlightRow &&
+                        highlightActive &&
+                        (pendingHighlight?.highlightColumn === "sourceId" ||
+                          pendingHighlight?.highlightColumn === "row");
+
+                      return (
+                        <TableRow
+                          key={row.id}
+                          hover
+                          ref={isHighlightRow ? highlightRowRef : undefined}
+                        >
+                          <TableCell
+                            sx={financeHighlightCellSx(
+                              highlightSourceId || highlightReference,
+                            )}
+                          >
+                            {highlightSourceId ? (
+                              <Typography
+                                component="span"
+                                variant="caption"
+                                sx={{
+                                  display: "block",
+                                  fontVariantNumeric: "tabular-nums",
+                                  fontWeight: 700,
+                                  color: "info.main",
+                                }}
+                              >
+                                ID #{row.id}
+                              </Typography>
+                            ) : null}
+                            {row.reference_number || "-"}
+                          </TableCell>
+                          <TableCell>
+                            {expenseCategoryLabel(row.category)}
+                          </TableCell>
+                          <TableCell>{row.vendor_name || "-"}</TableCell>
+                          <TableCell>{row.description || "-"}</TableCell>
+                          <TableCell sx={{ textTransform: "capitalize" }}>
+                            {expenseMethodLabel(row)}
+                          </TableCell>
+                          <TableCell>
+                            <Chip
+                              size="small"
+                              color={
+                                row.status === "void" ? "default" : "success"
+                              }
+                              label={row.status === "void" ? "Void" : "Posted"}
+                            />
+                          </TableCell>
+                          <TableCell align="right">
+                            {formatKyats(row.amount)}
+                          </TableCell>
+                        </TableRow>
+                      );
+                    })}
+                  </Fragment>
+                );
               })}
-            {!loading && displayedRows.length > 0 ? (
-              <TableRow
-                sx={{ bgcolor: alpha(theme.palette.text.primary, 0.04) }}
-              >
-                <TableCell colSpan={7} align="right" sx={{ fontWeight: 800 }}>
-                  Total
-                </TableCell>
-                <TableCell
-                  align="right"
-                  sx={{ fontWeight: 800, fontVariantNumeric: "tabular-nums" }}
-                >
-                  {money(periodTotal)}
-                </TableCell>
-                <TableCell />
-              </TableRow>
-            ) : null}
-          </TableBody>
-        </Table>
-      </TableContainer>
+            </TableBody>
+          </Table>
+        </TableContainer>
+      )}
+
+      {!loading && displayedRows.length > PAGE_SIZE && (
+        <Stack direction="row" justifyContent="center" mt={2}>
+          <Pagination
+            page={page}
+            count={pageCount}
+            onChange={(_, value) => setPage(value)}
+            color="primary"
+          />
+        </Stack>
+      )}
 
       <Dialog
         open={dialogOpen}
@@ -692,9 +743,14 @@ export default function FinanceExpensesPage() {
                 }
               >
                 {groupedTransactionMethodsForSelect(
-                  expenseTransactionMethods.filter((m) => m.status === "active"),
+                  expenseTransactionMethods.filter(
+                    (m) => m.status === "active",
+                  ),
                 ).flatMap((group) => [
-                  <ListSubheader key={`exp-tm-${group.kind}`} sx={{ fontWeight: 700 }}>
+                  <ListSubheader
+                    key={`exp-tm-${group.kind}`}
+                    sx={{ fontWeight: 700 }}
+                  >
                     {group.label}
                   </ListSubheader>,
                   ...group.methods.map((m) => {
@@ -713,7 +769,10 @@ export default function FinanceExpensesPage() {
                         >
                           <Typography variant="body2">{m.name}</Typography>
                           {sub ? (
-                            <Typography variant="caption" color="text.secondary">
+                            <Typography
+                              variant="caption"
+                              color="text.secondary"
+                            >
                               {sub}
                             </Typography>
                           ) : null}

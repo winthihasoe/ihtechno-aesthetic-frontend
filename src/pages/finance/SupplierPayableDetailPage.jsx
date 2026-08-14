@@ -329,7 +329,7 @@ export default function SupplierPayableDetailPage() {
   }
 
   return (
-    <Box sx={{ p: { xs: 2, md: 3 }, maxWidth: 1120, mx: "auto" }}>
+    <Box>
       <Button
         startIcon={<ArrowBackIcon />}
         onClick={() => navigate("..", { relative: "path" })}
@@ -542,67 +542,70 @@ export default function SupplierPayableDetailPage() {
                   pendingHighlight?.highlightColumn === "sourceId";
 
                 return (
-                <TableRow key={t.id} ref={isHighlightRow ? highlightRowRef : undefined}>
-                  <TableCell sx={financeHighlightCellSx(highlightSourceId)}>
-                    {humanDateTime(t.payment_date)}
-                    <Typography
-                      component="span"
-                      variant="caption"
+                  <TableRow
+                    key={t.id}
+                    ref={isHighlightRow ? highlightRowRef : undefined}
+                  >
+                    <TableCell sx={financeHighlightCellSx(highlightSourceId)}>
+                      {humanDateTime(t.payment_date)}
+                      <Typography
+                        component="span"
+                        variant="caption"
+                        sx={{
+                          display: "block",
+                          color: "text.secondary",
+                          fontVariantNumeric: "tabular-nums",
+                        }}
+                      >
+                        ID #{t.id}
+                      </Typography>
+                    </TableCell>
+                    <TableCell>
+                      <Chip
+                        label={t.payment_method}
+                        size="small"
+                        variant="outlined"
+                      />
+                    </TableCell>
+                    <TableCell
                       sx={{
-                        display: "block",
-                        color: "text.secondary",
-                        fontVariantNumeric: "tabular-nums",
+                        maxWidth: 280,
+                        ...financeHighlightCellSx(highlightReference),
                       }}
                     >
-                      ID #{t.id}
-                    </Typography>
-                  </TableCell>
-                  <TableCell>
-                    <Chip
-                      label={t.payment_method}
-                      size="small"
-                      variant="outlined"
-                    />
-                  </TableCell>
-                  <TableCell
-                    sx={{
-                      maxWidth: 280,
-                      ...financeHighlightCellSx(highlightReference),
-                    }}
-                  >
-                    <Typography
-                      variant="body2"
-                      noWrap
-                      title={
-                        [t.description, t.memo]
+                      <Typography
+                        variant="body2"
+                        noWrap
+                        title={
+                          [t.description, t.memo]
+                            .map((x) =>
+                              x != null && String(x).trim()
+                                ? String(x).trim()
+                                : "",
+                            )
+                            .find(Boolean) ||
+                          t.reference_number ||
+                          ""
+                        }
+                      >
+                        {[t.description, t.memo]
                           .map((x) =>
                             x != null && String(x).trim()
                               ? String(x).trim()
                               : "",
                           )
                           .find(Boolean) ||
-                        t.reference_number ||
-                        ""
-                      }
-                    >
-                      {[t.description, t.memo]
-                        .map((x) =>
-                          x != null && String(x).trim()
-                            ? String(x).trim()
-                            : "",
-                        )
-                        .find(Boolean) ||
-                        t.reference_number ||
-                        "—"}
-                    </Typography>
-                  </TableCell>
-                  <TableCell align="right">
-                    <Typography fontWeight={800}>
-                      {formatKyats(Number(t.amount))}
-                    </Typography>
-                  </TableCell>
-                </TableRow>
-              );
+                          t.reference_number ||
+                          "—"}
+                      </Typography>
+                    </TableCell>
+                    <TableCell align="right">
+                      <Typography fontWeight={800}>
+                        {formatKyats(Number(t.amount))}
+                      </Typography>
+                    </TableCell>
+                  </TableRow>
+                );
               })}
               {!transactions.length ? (
                 <TableRow>
@@ -706,7 +709,10 @@ export default function SupplierPayableDetailPage() {
           </Stack>
         </DialogContent>
         <DialogActions sx={{ px: 3, pb: 2 }}>
-          <Button onClick={() => void attemptClosePayDialog()} disabled={paying}>
+          <Button
+            onClick={() => void attemptClosePayDialog()}
+            disabled={paying}
+          >
             Cancel
           </Button>
           <Button variant="contained" onClick={handlePay} disabled={paying}>

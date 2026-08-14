@@ -98,6 +98,27 @@ function OrgChartCanvasInner({
     >
       <Background gap={20} size={1} color={theme.palette.divider} />
       <Controls position="bottom-right" showInteractive={false} />
+      <MiniMap
+        position="bottom-left"
+        pannable
+        zoomable
+        nodeStrokeWidth={2}
+        nodeColor={(node) =>
+          node.data?.isVirtual
+            ? theme.palette.text.disabled
+            : node.data?.departmentColor?.accent ?? theme.palette.primary.main
+        }
+        maskColor={
+          theme.palette.mode === "dark"
+            ? "rgba(0, 0, 0, 0.55)"
+            : "rgba(255, 255, 255, 0.65)"
+        }
+        style={{
+          borderRadius: 8,
+          border: `1px solid ${theme.palette.divider}`,
+          overflow: "hidden",
+        }}
+      />
     </ReactFlow>
   );
 }

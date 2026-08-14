@@ -116,6 +116,7 @@ const FORM_TYPE_OPTIONS = [
   { value: "questionnaire", label: "Questionnaire" },
   { value: "consent", label: "Consent" },
   { value: "intake", label: "Intake" },
+  { value: "procedure", label: "Procedure" },
 ];
 
 /** Matches backend `form_fields.section` — used on Create Patient intake layout. */

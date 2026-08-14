@@ -101,18 +101,81 @@ function emptyPreviewLine() {
     debit: "",
     credit: "",
     description: "",
+    line_kind: null,
   };
 }
 
+function unwrapPreviewPayload(payload) {
+  if (payload == null || Array.isArray(payload)) return {};
+  const inner = payload.data;
+  const looksEmpty =
+    payload.lines == null &&
+    payload.amount == null &&
+    payload.reference == null &&
+    payload.memo == null;
+  if (
+    looksEmpty &&
+    inner &&
+    typeof inner === "object" &&
+    !Array.isArray(inner)
+  ) {
+    return inner;
+  }
+  return payload;
+}
+
+function asAccountList(payload) {
+  if (Array.isArray(payload)) return payload;
+  if (Array.isArray(payload?.data)) return payload.data;
+  return [];
+}
+
 function previewLineToForm(line) {
+  const debit = line.debit ?? line.debit_amount ?? line.dr ?? 0;
+  const credit = line.credit ?? line.credit_amount ?? line.cr ?? 0;
   return {
-    account_id: String(line.account_id ?? line.account?.id ?? ""),
-    debit:
-      Number(line.debit) > 0 ? formatCommaAmountFromNumber(line.debit) : "",
-    credit:
-      Number(line.credit) > 0 ? formatCommaAmountFromNumber(line.credit) : "",
-    description: line.description ?? "",
+    account_id: String(
+      line.account_id ?? line.account?.id ?? line.chart_of_account_id ?? "",
+    ),
+    debit: Number(debit) > 0 ? formatCommaAmountFromNumber(debit) : "",
+    credit: Number(credit) > 0 ? formatCommaAmountFromNumber(credit) : "",
+    description: line.description ?? line.narration ?? line.memo ?? "",
+    line_kind: line.line_kind ?? null,
   };
+}
+
+function invoiceLineKindHint(lineKind) {
+  switch (lineKind) {
+    case "ar_package":
+      return "Package portion — Accounts Receivable (patient owes).";
+    case "package_deposit":
+      return "Package deferred liability — Customer Deposit until sessions are used.";
+    case "ar_earned":
+      return "Earned portion — Accounts Receivable (consultation, products, etc.).";
+    case "earned_revenue":
+      return "Already delivered — Income (not a package deposit).";
+    case "ar_tax":
+      return "Tax portion — Accounts Receivable.";
+    case "tax":
+      return "Sales tax payable.";
+    default:
+      return null;
+  }
+}
+
+function formatEarnedParts(parts) {
+  if (!parts || typeof parts !== "object") return null;
+  const labels = {
+    consultation: "Consultation",
+    treatment: "Treatments",
+    product: "Products",
+    prescription: "Prescriptions",
+    other: "Other",
+  };
+  const rows = Object.entries(parts)
+    .filter(([, amount]) => Number(amount) > 0)
+    .map(([key, amount]) => `${labels[key] ?? key} ${formatKyats(amount)}`);
+  return rows.length ? rows.join(" · ") : null;
 }
 
 function sumPreviewLines(lines) {
@@ -401,7 +464,7 @@ export default function TransactionPage() {
     (async () => {
       try {
         const data = await listChartOfAccounts({ is_active: true });
-        setAccounts(Array.isArray(data) ? data : []);
+        setAccounts(asAccountList(data));
       } catch {
         setAccounts([]);
       }
@@ -471,16 +534,22 @@ export default function TransactionPage() {
     setPreviewOpen(true);
     setPreviewLoading(true);
     try {
-      const data = await getAccountingQueuePreview(
+      const raw = await getAccountingQueuePreview(
         row.source_type,
         row.source_id,
       );
+      const data = unwrapPreviewPayload(raw);
       setPreviewMeta({
         ...data,
+        reference: data.reference ?? row.reference,
+        name: data.name ?? row.name,
+        amount: data.amount ?? row.amount,
+        source_type: data.source_type ?? row.source_type,
+        source_id: data.source_id ?? row.source_id,
         readOnly: readOnly || !data.can_post || !canManage,
       });
       setPreviewForm({
-        journal_date: data.journal_date ?? dayjs().format("YYYY-MM-DD"),
+        journal_date: data.journal_date ?? row.event_date ?? dayjs().format("YYYY-MM-DD"),
         memo: data.memo ?? "",
         lines:
           (data.lines ?? []).length > 0
@@ -522,10 +591,12 @@ export default function TransactionPage() {
     if (!activeRow) return;
     setPreviewSaving(true);
     try {
-      const data = await saveAccountingQueueDraft(
-        activeRow.source_type,
-        activeRow.source_id,
-        buildPayloadFromForm(),
+      const data = unwrapPreviewPayload(
+        await saveAccountingQueueDraft(
+          activeRow.source_type,
+          activeRow.source_id,
+          buildPayloadFromForm(),
+        ),
       );
       setPreviewMeta((prev) => ({
         ...prev,
@@ -535,7 +606,10 @@ export default function TransactionPage() {
       setPreviewForm({
         journal_date: data.journal_date ?? previewForm.journal_date,
         memo: data.memo ?? previewForm.memo,
-        lines: (data.lines ?? []).map(previewLineToForm),
+        lines:
+          (data.lines ?? []).length > 0
+            ? data.lines.map(previewLineToForm)
+            : previewForm.lines,
       });
       pushToast({ message: "Draft saved.", severity: "success" });
       closePreview();
@@ -846,10 +920,49 @@ export default function TransactionPage() {
             <Stack spacing={2}>
               {previewMeta && (
                 <Typography variant="body2" color="text.secondary">
-                  {previewMeta.reference} · {previewMeta.name} ·{" "}
+                  {[previewMeta.reference, previewMeta.name]
+                    .filter(Boolean)
+                    .join(" · ")}
+                  {previewMeta.reference || previewMeta.name ? " · " : ""}
                   {formatKyats(previewMeta.amount)}
                 </Typography>
               )}
+
+              {previewMeta?.invoice_breakdown &&
+              (Number(previewMeta.invoice_breakdown.package) > 0 ||
+                Number(previewMeta.invoice_breakdown.earned) > 0) ? (
+                <Alert severity="info" sx={{ py: 1 }}>
+                  <Typography variant="body2" sx={{ fontWeight: 600, mb: 0.5 }}>
+                    Invoice split
+                  </Typography>
+                  <Typography variant="body2" component="div">
+                    {Number(previewMeta.invoice_breakdown.package) > 0 ? (
+                      <div>
+                        Package (deferred deposit):{" "}
+                        {formatKyats(previewMeta.invoice_breakdown.package)}
+                      </div>
+                    ) : null}
+                    {Number(previewMeta.invoice_breakdown.earned) > 0 ? (
+                      <div>
+                        Earned (consultation / products / other):{" "}
+                        {formatKyats(previewMeta.invoice_breakdown.earned)}
+                        {(() => {
+                          const earnedDetail = formatEarnedParts(
+                            previewMeta.invoice_breakdown.earned_parts,
+                          );
+                          return earnedDetail ? ` — ${earnedDetail}` : "";
+                        })()}
+                      </div>
+                    ) : null}
+                    {Number(previewMeta.invoice_breakdown.tax) > 0 ? (
+                      <div>
+                        Tax: {formatKyats(previewMeta.invoice_breakdown.tax)}
+                      </div>
+                    ) : null}
+                  </Typography>
+                </Alert>
+              ) : null}
+
               <Stack direction={{ xs: "column", sm: "row" }} spacing={2}>
                 <TextField
                   label="Journal date"
@@ -885,74 +998,89 @@ export default function TransactionPage() {
                 </Alert>
               )}
 
-              {previewForm.lines.map((line, index) => (
-                <Stack
-                  key={index}
-                  direction={{ xs: "column", md: "row" }}
-                  spacing={1}
-                  alignItems={{ md: "flex-start" }}
-                >
-                  <Box sx={{ flex: 2, minWidth: 200 }}>
-                    <ChartOfAccountPicker
-                      accounts={accounts}
-                      value={line.account_id}
-                      onChange={(id) =>
-                        updatePreviewLine(index, { account_id: id })
-                      }
-                      onAccountsChange={setAccounts}
-                      disabled={readOnly}
-                      label="Account"
-                    />
-                  </Box>
-                  <TextField
-                    label="Debit"
-                    size="small"
-                    disabled={readOnly}
-                    value={line.debit}
-                    onChange={(e) =>
-                      updatePreviewLine(index, {
-                        debit: sanitizeCommaAmountInput(e.target.value),
-                        credit: "",
-                      })
-                    }
-                    sx={{ width: { md: 120 } }}
-                  />
-                  <TextField
-                    label="Credit"
-                    size="small"
-                    disabled={readOnly}
-                    value={line.credit}
-                    onChange={(e) =>
-                      updatePreviewLine(index, {
-                        credit: sanitizeCommaAmountInput(e.target.value),
-                        debit: "",
-                      })
-                    }
-                    sx={{ width: { md: 120 } }}
-                  />
-                  <TextField
-                    label="Description"
-                    size="small"
-                    fullWidth
-                    disabled={readOnly}
-                    value={line.description}
-                    onChange={(e) =>
-                      updatePreviewLine(index, {
-                        description: e.target.value,
-                      })
-                    }
-                    sx={{ flex: 2 }}
-                  />
-                  {!readOnly && previewForm.lines.length > 2 && (
-                    <IconButton
-                      aria-label="Remove line"
-                      onClick={() => removePreviewLine(index)}
+              {previewForm.lines.map((line, index) => {
+                const kindHint = invoiceLineKindHint(line.line_kind);
+                return (
+                  <Stack key={index} spacing={0.5}>
+                    <Stack
+                      direction={{ xs: "column", md: "row" }}
+                      spacing={1}
+                      alignItems={{ md: "flex-start" }}
                     >
-                      <DeleteOutlineIcon />
-                    </IconButton>
-                  )}
-                </Stack>
-              ))}
+                      <Box sx={{ flex: 2, minWidth: 200 }}>
+                        <ChartOfAccountPicker
+                          accounts={accounts}
+                          value={line.account_id}
+                          onChange={(id) =>
+                            updatePreviewLine(index, { account_id: id })
+                          }
+                          onAccountsChange={(next) =>
+                            setAccounts(asAccountList(next))
+                          }
+                          disabled={readOnly}
+                          label="Account"
+                        />
+                      </Box>
+                      <TextField
+                        label="Debit"
+                        size="small"
+                        disabled={readOnly}
+                        value={line.debit}
+                        onChange={(e) =>
+                          updatePreviewLine(index, {
+                            debit: sanitizeCommaAmountInput(e.target.value),
+                            credit: "",
+                          })
+                        }
+                        sx={{ width: { md: 120 } }}
+                      />
+                      <TextField
+                        label="Credit"
+                        size="small"
+                        disabled={readOnly}
+                        value={line.credit}
+                        onChange={(e) =>
+                          updatePreviewLine(index, {
+                            credit: sanitizeCommaAmountInput(e.target.value),
+                            debit: "",
+                          })
+                        }
+                        sx={{ width: { md: 120 } }}
+                      />
+                      <TextField
+                        label="Description"
+                        size="small"
+                        fullWidth
+                        disabled={readOnly}
+                        value={line.description}
+                        onChange={(e) =>
+                          updatePreviewLine(index, {
+                            description: e.target.value,
+                          })
+                        }
+                        sx={{ flex: 2 }}
+                      />
+                      {!readOnly && previewForm.lines.length > 2 && (
+                        <IconButton
+                          aria-label="Remove line"
+                          onClick={() => removePreviewLine(index)}
+                        >
+                          <DeleteOutlineIcon />
+                        </IconButton>
+                      )}
+                    </Stack>
+                    {kindHint ? (
+                      <Typography
+                        variant="caption"
+                        color="text.secondary"
+                        sx={{ pl: { md: 0.5 } }}
+                      >
+                        {kindHint}
+                      </Typography>
+                    ) : null}
+                  </Stack>
+                );
+              })}
 
               {!readOnly && (
                 <Button

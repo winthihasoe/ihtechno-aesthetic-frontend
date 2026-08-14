@@ -43,9 +43,19 @@ const FALLBACK_COLORS = [
 const normalizeKey = (departmentName) => {
   const label = (departmentName || "").trim().toLowerCase();
   if (!label || label === "unassigned") return "unassigned";
-  if (label.includes("management")) return "management";
-  if (label === "hr" || label.includes("human resource")) return "hr";
-  if (label.includes("operation")) return "operation";
+  if (label.includes("management") || label.includes("administration")) return "management";
+  if (label === "hr" || label.includes("human resource") || label.includes("nursing")) {
+    return "hr";
+  }
+  if (
+    label.includes("operation") ||
+    label.includes("outpatient") ||
+    label.includes("(opd)")
+  ) {
+    return "operation";
+  }
+  if (label.includes("laboratory") || label.includes("lab")) return "accounting";
+  if (label.includes("pharmacy")) return "sales";
   if (label.includes("sales") || label.includes("marketing")) return "sales";
   if (
     label.includes("account") ||

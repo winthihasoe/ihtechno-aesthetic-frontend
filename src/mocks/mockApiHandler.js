@@ -22,9 +22,12 @@ import {
   demoFixedAssets,
   buildCashFlows,
   demoJournalEntries,
+  buildJournalEntriesSummary,
   buildGeneralLedgerAccounts,
   buildGeneralLedgerLines,
   buildAccountingQueue,
+  buildAccountingQueuePreview,
+  buildInvoiceBreakdown,
 } from "./financeDemo";
 import {
   demoCommissions,
@@ -122,6 +125,57 @@ function findUserByToken(token) {
 
 function jsonResponse(data, status = 200) {
   return { data, status, statusText: "OK", headers: {}, config: {} };
+}
+
+function initialsFromName(name) {
+  return String(name || "")
+    .trim()
+    .split(/\s+/)
+    .filter(Boolean)
+    .map((part) => part[0])
+    .join("")
+    .slice(0, 2)
+    .toUpperCase();
+}
+
+function serializeUserFromPayload(store, body, existing = null) {
+  const roleIds = (body.role_ids || []).map(Number);
+  const roles = store.roles.filter((role) => roleIds.includes(role.id));
+  if (roles.length === 0) errorResponse("Select at least one role.", 422);
+
+  const name = String(body.name || "").trim();
+  const email = String(body.email || "").trim().toLowerCase();
+  if (!name || !email) errorResponse("Name and email are required.", 422);
+
+  const duplicate = store.users.find(
+    (user) => user.email.toLowerCase() === email && user.id !== existing?.id,
+  );
+  if (duplicate) errorResponse("A user with this email already exists.", 422);
+
+  const primaryRole = roles[0];
+  const now = new Date().toISOString();
+
+  return {
+    ...(existing || {}),
+    id:
+      existing?.id ??
+      (store.users.length
+        ? Math.max(...store.users.map((user) => user.id))
+        : 0) + 1,
+    name,
+    email,
+    role: primaryRole.slug,
+    roles: roles.map((role) => ({
+      id: role.id,
+      slug: role.slug,
+      name: role.name,
+    })),
+    permissions: primaryRole.permissions ?? [],
+    is_active: existing?.is_active ?? true,
+    avatar: existing?.avatar ?? initialsFromName(name),
+    created_at: existing?.created_at ?? now,
+    updated_at: now,
+  };
 }
 
 function errorResponse(message, status = 404) {
@@ -235,6 +289,45 @@ function updateVisitInStore(visitId, patch) {
   if (idx === -1) return null;
   store.visits[idx] = { ...store.visits[idx], ...patch, updated_at: new Date().toISOString() };
   return store.visits[idx];
+}
+
+function findAccountingQueueItem(store, sourceType, sourceId) {
+  return (store.accountingQueue ?? []).find(
+    (row) =>
+      row.source_type === sourceType &&
+      Number(row.source_id) === Number(sourceId),
+  );
+}
+
+function invoiceItemsFromStore(store, row) {
+  const payment = store.payments.find(
+    (p) =>
+      Number(p.id) === Number(row.source_id) ||
+      p.invoice_number === row.reference,
+  );
+  if (!payment) return [];
+  if (Array.isArray(payment.items?.lines)) return payment.items.lines;
+  if (Array.isArray(payment.items)) return payment.items;
+  return [];
+}
+
+function previewExtrasForRow(store, row) {
+  if (row.source_type === "invoice") {
+    const invoiceItems = invoiceItemsFromStore(store, row);
+    return {
+      invoiceItems,
+      invoice_breakdown: invoiceItems.length
+        ? buildInvoiceBreakdown(invoiceItems)
+        : null,
+    };
+  }
+  if (row.source_type === "expense") {
+    const expense =
+      store.expenses.find((e) => Number(e.id) === Number(row.source_id)) ??
+      store.expenses.find((e) => e.reference_number === row.reference);
+    return { category: expense?.category };
+  }
+  return {};
 }
 
 export async function handleMockRequest(config) {
@@ -514,7 +607,22 @@ export async function handleMockRequest(config) {
       return jsonResponse(store.payments.find((p) => p.visit_id === visitId) ?? { id: visitId, amount: 0, status: "unpaid" });
     }
     if (path === `visits/${visitId}/payment/generate` && method === "post") {
-      return jsonResponse({ id: store.nextPaymentId++, visit_id: visitId, amount: 350000, status: "unpaid" });
+      const existing = store.payments.find((p) => p.visit_id === visitId);
+      if (existing) return jsonResponse(existing);
+      const amount = computeVisitAmount(visit);
+      const payment = {
+        id: store.nextPaymentId++,
+        visit_id: visitId,
+        amount,
+        total_amount: amount,
+        paid_amount: 0,
+        balance: amount,
+        status: "unpaid",
+        created_at: new Date().toISOString(),
+        items: { lines: [] },
+      };
+      store.payments.unshift(payment);
+      return jsonResponse(payment);
     }
     if (path === `visits/${visitId}/consultation` && method === "get") {
       return jsonResponse(
@@ -840,16 +948,49 @@ export async function handleMockRequest(config) {
   }
 
   // ── Users & roles ─────────────────────────────────────────────────────
-  if (path === "users" && method === "get") return jsonResponse(store.users);
+  if (path === "users" && method === "get") return jsonResponse([...store.users]);
+  if (path === "users" && method === "post") {
+    const password = String(body.password || "");
+    if (password.length < 8) {
+      errorResponse("Password must be at least 8 characters.", 422);
+    }
+    const user = serializeUserFromPayload(store, body);
+    store.users.push(user);
+    demoPasswords[user.email] = password;
+    return jsonResponse(user, 201);
+  }
   if (path === "users/assignable-roles" && method === "get") return jsonResponse(store.roles);
+
+  const userId = pathId(path, "users");
+  if (userId && path === `users/${userId}` && method === "put") {
+    const index = store.users.findIndex((u) => u.id === userId);
+    if (index < 0) errorResponse("User not found", 404);
+    const updated = serializeUserFromPayload(store, body, store.users[index]);
+    if (String(body.password || "").trim()) {
+      demoPasswords[updated.email] = String(body.password).trim();
+    }
+    store.users[index] = updated;
+    return jsonResponse(updated);
+  }
+  if (userId && path === `users/${userId}` && method === "delete") {
+    const index = store.users.findIndex((u) => u.id === userId);
+    if (index < 0) errorResponse("User not found", 404);
+    const [removed] = store.users.splice(index, 1);
+    delete demoPasswords[removed.email];
+    return jsonResponse({ success: true });
+  }
   if (path === "roles" && method === "get") return jsonResponse(store.roles);
   if (path === "permissions" && method === "get") {
     return jsonResponse(
-      Array.from(new Set(store.roles.flatMap((r) => r.permissions))).map((slug, i) => ({
-        id: i + 1,
-        slug,
-        name: slug,
-      })),
+      Array.from(new Set(store.roles.flatMap((r) => r.permissions))).map(
+        (code, i) => ({
+          id: i + 1,
+          code,
+          slug: code,
+          name: code,
+          group: code.split(".")[0] || "general",
+        }),
+      ),
     );
   }
 
@@ -937,6 +1078,37 @@ export async function handleMockRequest(config) {
   const staffId = pathId(path, "staffs");
   if (staffId && path === `staffs/${staffId}` && method === "get") {
     const staff = store.staffs.find((s) => s.id === staffId);
+    return jsonResponse(staff);
+  }
+  if (staffId && path === `staffs/${staffId}` && method === "put") {
+    const staff = store.staffs.find((s) => s.id === staffId);
+    if (!staff) return jsonResponse({ message: "Staff not found." }, 404);
+
+    const profile = staff.staff_profile ?? {};
+    const managerId =
+      body.reporting_manager_id != null ? Number(body.reporting_manager_id) : null;
+    const manager =
+      managerId != null ? store.staffs.find((s) => Number(s.id) === managerId) : null;
+
+    staff.staff_profile = {
+      ...profile,
+      position_title: body.position_title ?? profile.position_title,
+      department_id: body.department_id ?? profile.department_id ?? profile.department?.id,
+      employment_type: body.employment_type ?? profile.employment_type,
+      employee_code: body.employee_code ?? profile.employee_code,
+      reporting_manager_id: managerId,
+      reporting_manager: manager ? { id: manager.id, name: manager.name } : null,
+    };
+
+    if (body.department_id != null) {
+      const department = store.departments.find((d) => Number(d.id) === Number(body.department_id));
+      if (department) {
+        staff.department = department;
+        staff.department_id = department.id;
+        staff.staff_profile.department = department;
+      }
+    }
+
     return jsonResponse(staff);
   }
   if (staffId && path === `staffs/${staffId}/custom-fields` && method === "get") {
@@ -1139,6 +1311,38 @@ export async function handleMockRequest(config) {
     }
   }
   const templateId = pathId(path, "treatment-templates");
+  if (templateId && path === `treatment-templates/${templateId}/required-forms`) {
+    const template = store.treatmentTemplates.find((t) => t.id === templateId);
+    if (method === "get") {
+      return jsonResponse(template?.required_form_links ?? []);
+    }
+    if (method === "put" && template) {
+      const incoming = Array.isArray(body)
+        ? body
+        : body.required_forms ?? body.links ?? [];
+      template.required_form_links = incoming
+        .map((l) => {
+          const formId = Number(l.form_definition_id ?? l.form_id);
+          if (!Number.isFinite(formId) || formId <= 0) return null;
+          const form = store.forms.find((f) => f.id === formId);
+          return {
+            form_definition_id: formId,
+            is_required: l.is_required !== false,
+            form_definition: form
+              ? {
+                  id: form.id,
+                  name: form.name,
+                  form_type: form.form_type,
+                  slug: form.slug,
+                  code: form.code,
+                }
+              : l.form_definition ?? null,
+          };
+        })
+        .filter(Boolean);
+      return jsonResponse(template.required_form_links);
+    }
+  }
   if (templateId && path === `treatment-templates/${templateId}`) {
     const template = store.treatmentTemplates.find((t) => t.id === templateId);
     if (method === "get") return jsonResponse(template ?? null);
@@ -1482,7 +1686,23 @@ export async function handleMockRequest(config) {
     return jsonResponse({ data: buildCashFlows() });
   }
   if ((path === "journal-entries" || path === "journal-transactions") && method === "get") {
-    return jsonResponse({ data: demoJournalEntries });
+    let rows = [...demoJournalEntries];
+    if (params.entry_category) {
+      rows = rows.filter((e) => e.entry_category === params.entry_category);
+    }
+    if (params.query) {
+      const q = String(params.query).trim().toLowerCase();
+      rows = rows.filter(
+        (e) =>
+          String(e.journal_no ?? "").toLowerCase().includes(q) ||
+          String(e.description ?? "").toLowerCase().includes(q) ||
+          String(e.memo ?? "").toLowerCase().includes(q),
+      );
+    }
+    return jsonResponse({
+      data: rows,
+      meta: { summary: buildJournalEntriesSummary(rows) },
+    });
   }
   if (path === "general-ledger/accounts" && method === "get") {
     return jsonResponse({ data: buildGeneralLedgerAccounts() });
@@ -1492,9 +1712,72 @@ export async function handleMockRequest(config) {
     return jsonResponse({ data: buildGeneralLedgerLines(Number(glMatch[1])) });
   }
   if (path === "accounting-queue" && method === "get") {
-    let rows = buildAccountingQueue();
-    if (params.status) rows = rows.filter((r) => r.journal_posting_status === params.status);
-    return jsonResponse({ data: rows });
+    let rows = [...(store.accountingQueue ?? buildAccountingQueue())];
+    if (params.status) {
+      rows = rows.filter((r) => r.journal_posting_status === params.status);
+    }
+    if (params.source_type) {
+      rows = rows.filter((r) => r.source_type === params.source_type);
+    }
+    if (params.source_id) {
+      rows = rows.filter(
+        (r) => String(r.source_id) === String(params.source_id),
+      );
+    }
+    if (params.date_from) {
+      const from = String(params.date_from);
+      rows = rows.filter((r) => String(r.event_date ?? "") >= from);
+    }
+    if (params.date_to) {
+      const to = String(params.date_to);
+      rows = rows.filter((r) => String(r.event_date ?? "") <= to);
+    }
+    if (params.query) {
+      const q = String(params.query).toLowerCase();
+      rows = rows.filter(
+        (r) =>
+          String(r.reference ?? "").toLowerCase().includes(q) ||
+          String(r.name ?? "").toLowerCase().includes(q) ||
+          String(r.type_label ?? "").toLowerCase().includes(q),
+      );
+    }
+    return jsonResponse(paginate(rows, params));
+  }
+  const queueActionMatch = path.match(
+    /^accounting-queue\/([^/]+)\/(\d+)\/(preview|draft|post)$/,
+  );
+  if (queueActionMatch) {
+    const sourceType = decodeURIComponent(queueActionMatch[1]);
+    const sourceId = Number(queueActionMatch[2]);
+    const action = queueActionMatch[3];
+    const row = findAccountingQueueItem(store, sourceType, sourceId);
+    if (!row) errorResponse("Accounting queue item not found", 404);
+    const extras = previewExtrasForRow(store, row);
+    if (action === "preview" && method === "get") {
+      return jsonResponse(buildAccountingQueuePreview(row, extras));
+    }
+    if (action === "draft" && method === "put") {
+      row.draft_journal_date = body.journal_date ?? row.draft_journal_date;
+      row.draft_memo = body.memo ?? row.draft_memo;
+      if (Array.isArray(body.lines)) row.draft_lines = body.lines;
+      return jsonResponse(buildAccountingQueuePreview(row, extras));
+    }
+    if (action === "post" && method === "post") {
+      const lines = Array.isArray(body.lines) ? body.lines : null;
+      row.journal_date = body.journal_date ?? row.event_date;
+      row.memo = body.memo ?? row.memo;
+      if (lines) row.posted_lines = lines;
+      row.draft_journal_date = null;
+      row.draft_memo = null;
+      row.draft_lines = null;
+      row.journal_posting_status = "posted";
+      return jsonResponse(
+        buildAccountingQueuePreview(row, {
+          ...extras,
+          lines: row.posted_lines,
+        }),
+      );
+    }
   }
 
   // ── Finance (fallback) ────────────────────────────────────────────────
@@ -1516,6 +1799,8 @@ export async function handleMockRequest(config) {
         updated_at: new Date().toISOString(),
         ...body,
       };
+      if (!form.code) form.code = form.slug || `form-${form.id}`;
+      if (!form.slug) form.slug = form.code;
       store.forms.unshift(form);
       return jsonResponse(form, 201);
     }

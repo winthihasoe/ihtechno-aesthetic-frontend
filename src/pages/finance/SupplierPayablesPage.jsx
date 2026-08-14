@@ -178,7 +178,8 @@ export default function SupplierPayablesPage() {
     if (!supplierId || !Number.isFinite(amountNum) || amountNum <= 0) {
       setSearchParams({}, { replace: true });
       pushToast({
-        message: "Invalid consignment payable prefill — open New payable manually.",
+        message:
+          "Invalid consignment payable prefill — open New payable manually.",
         severity: "warning",
       });
       return;
@@ -236,9 +237,15 @@ export default function SupplierPayablesPage() {
   };
 
   const handleCreate = async () => {
-    const isConsignmentPrefill = String(form.reference || "").startsWith("CONS-");
+    const isConsignmentPrefill = String(form.reference || "").startsWith(
+      "CONS-",
+    );
     if (isConsignmentPrefill) {
-      if (!form.supplier_id || !form.consignment_usage_from || !form.consignment_usage_to) {
+      if (
+        !form.supplier_id ||
+        !form.consignment_usage_from ||
+        !form.consignment_usage_to
+      ) {
         pushToast({
           message:
             "Consignment payable must include supplier and both usage dates to keep paid status accurate.",
@@ -284,7 +291,7 @@ export default function SupplierPayablesPage() {
   };
 
   return (
-    <Box sx={{ p: { xs: 2, md: 3 }, maxWidth: 1280, mx: "auto" }}>
+    <Box>
       <Stack
         direction={{ xs: "column", sm: "row" }}
         justifyContent="space-between"
@@ -315,8 +322,8 @@ export default function SupplierPayablesPage() {
       <Alert severity="info" sx={{ mb: 2, borderRadius: 2 }}>
         Money the clinic owes suppliers for stock received. Watch the{" "}
         <strong>Balance</strong> and <strong>Due</strong> columns — overdue rows
-        are flagged. Record part or full settlement with <strong>Pay</strong>; the
-        status moves to <em>partial</em> then <em>paid</em> automatically.
+        are flagged. Record part or full settlement with <strong>Pay</strong>;
+        the status moves to <em>partial</em> then <em>paid</em> automatically.
       </Alert>
 
       {summary.overdueDue > 0 ? (

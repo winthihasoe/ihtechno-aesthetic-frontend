@@ -126,6 +126,10 @@ function sumManualLines(lines) {
   return { debit, credit };
 }
 
+function journalEntryKey(entry, index) {
+  return entry?.journal_entry_id ?? entry?.id ?? `row-${index}`;
+}
+
 function categoryTextColor(category, theme) {
   switch (category) {
     case "income":
@@ -672,8 +676,9 @@ export default function JournalEntriesPage() {
                 ) : null}
                 {!loading
                   ? entries.map((entry, index) => {
+                      const entryKey = journalEntryKey(entry, index);
                       const isExpanded =
-                        expandedEntryId === entry.journal_entry_id;
+                        expandedEntryId != null && expandedEntryId === entryKey;
                       const category =
                         entry.entry_category_label ??
                         journalEntryCategoryLabel(entry.entry_category);
@@ -683,10 +688,10 @@ export default function JournalEntriesPage() {
                       );
 
                       return (
-                        <Fragment key={entry.journal_entry_id}>
+                        <Fragment key={entryKey}>
                           <TableRow
                             hover
-                            onClick={() => toggleExpand(entry.journal_entry_id)}
+                            onClick={() => toggleExpand(entryKey)}
                             sx={{
                               cursor: "pointer",
                               opacity: entry.reversed_at ? 0.65 : 1,
@@ -705,7 +710,7 @@ export default function JournalEntriesPage() {
                                 aria-label={isExpanded ? "Collapse" : "Expand"}
                                 onClick={(e) => {
                                   e.stopPropagation();
-                                  toggleExpand(entry.journal_entry_id);
+                                  toggleExpand(entryKey);
                                 }}
                                 sx={{
                                   transform: isExpanded
@@ -903,7 +908,7 @@ export default function JournalEntriesPage() {
                                               ? `${line.account.code} · ${line.account.name}`
                                               : "—"}
                                           </TableCell>
-                                          <TableCell>
+                                          <TableCell sx={{ whiteSpace: "normal" }}>
                                             {line.description ?? "—"}
                                             {line.voided_at ? " (void)" : ""}
                                           </TableCell>

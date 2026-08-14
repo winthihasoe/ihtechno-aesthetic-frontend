@@ -575,66 +575,31 @@ export default function PaymentDetailPage() {
     const previewOnly = !isNewInvoiceMode && isInvoicePreviewOpenStatus(stNow);
 
     if (previewOnly) {
-      const openPreviewWhenDone = !hasDraftChanges;
-      if (stNow === "paid" && openPreviewWhenDone) {
-        try {
-          setDrafting(true);
-          const refreshed = await getPaymentById(payment.id);
-          setPayment(refreshed);
-          setLines(normalizePaymentLines(refreshed?.items));
-          setOrderDiscount(normalizeOrderDiscount(refreshed?.items));
-          setNotes(refreshed?.notes || "");
-          setCustomerName(resolvePaymentCustomerName(refreshed));
-          setCustomerPhone(refreshed?.customer_phone || "");
-          setOpenPreview(true);
-          pushToast({
-            message: "Invoice preview opened.",
-            severity: "success",
-          });
-        } catch (err) {
-          pushToast({
-            message: resolveApiError(err, "Unable to open invoice preview."),
-            severity: "error",
-          });
-        } finally {
-          setDrafting(false);
-        }
+      if (!hasDraftChanges) {
+        setOpenPreview(true);
         return;
       }
       try {
         setDrafting(true);
-        let updated = payment;
-        if (payment?.visit_id) {
-          updated = await generatePaymentDraft(payment.visit_id);
-          if (hasDraftChanges) {
-            updated = await updatePayment(updated.id, buildDraftPayload(null));
-          }
-        } else if (hasDraftChanges) {
-          updated = await updatePayment(payment.id, buildDraftPayload(null));
-        }
+        const updated = await updatePayment(
+          payment.id,
+          buildDraftPayload(null),
+        );
         setPayment(updated);
-        setLines(normalizePaymentLines(updated?.items));
-        setOrderDiscount(normalizeOrderDiscount(updated?.items));
+        if (updated?.items != null) {
+          setLines(normalizePaymentLines(updated.items));
+          setOrderDiscount(normalizeOrderDiscount(updated.items));
+        }
         setNotes(updated?.notes || "");
         setCustomerName(resolvePaymentCustomerName(updated));
         setCustomerPhone(updated?.customer_phone || "");
-        if (openPreviewWhenDone) {
-          setOpenPreview(true);
-        }
         pushToast({
-          message: openPreviewWhenDone
-            ? "Invoice preview opened."
-            : "Invoice saved.",
+          message: "Invoice saved.",
           severity: "success",
         });
       } catch (err) {
         pushToast({
-          message: resolveApiError(
-            err,
-            openPreviewWhenDone
-              ? "Unable to open invoice preview."
-              : "Unable to save invoice.",
-          ),
+          message: resolveApiError(err, "Unable to save invoice."),
           severity: "error",
         });
       } finally {
@@ -672,8 +637,10 @@ export default function PaymentDetailPage() {
         );
       }
       setPayment(updated);
-      setLines(normalizePaymentLines(updated?.items));
-      setOrderDiscount(normalizeOrderDiscount(updated?.items));
+      if (updated?.items != null) {
+        setLines(normalizePaymentLines(updated.items));
+        setOrderDiscount(normalizeOrderDiscount(updated.items));
+      }
       setNotes(updated?.notes || "");
       setCustomerName(resolvePaymentCustomerName(updated));
       setCustomerPhone(updated?.customer_phone || "");
@@ -801,8 +768,10 @@ export default function PaymentDetailPage() {
         });
       }
       setPayment(refreshed);
-      setLines(normalizePaymentLines(refreshed?.items));
-      setOrderDiscount(normalizeOrderDiscount(refreshed?.items));
+      if (refreshed?.items != null) {
+        setLines(normalizePaymentLines(refreshed.items));
+        setOrderDiscount(normalizeOrderDiscount(refreshed.items));
+      }
       setNotes(refreshed?.notes || "");
       pushToast({
         message:
@@ -811,6 +780,7 @@ export default function PaymentDetailPage() {
             : "Payment completed — invoice marked paid.",
         severity: "success",
       });
+      setOpenPreview(false);
       await new Promise((resolve) => {
         requestAnimationFrame(() => requestAnimationFrame(resolve));
       });
@@ -1472,7 +1442,12 @@ export default function PaymentDetailPage() {
         receiptMeta={receiptMeta}
         makingPayment={makingPayment}
         canCompletePayment={canCompletePayment}
-        onPrintReceipt={() => window.print()}
+        onPrintReceipt={() => {
+          setOpenPreview(false);
+          requestAnimationFrame(() => {
+            requestAnimationFrame(() => window.print());
+          });
+        }}
         onMakePaymentAndPrint={handleMakePaymentAndPrint}
       />
     </Box>

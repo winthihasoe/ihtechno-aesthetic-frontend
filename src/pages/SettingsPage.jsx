@@ -31,6 +31,7 @@ import {
   TableHead,
   TableRow,
   IconButton,
+  Chip,
 } from "@mui/material";
 import { alpha } from "@mui/material/styles";
 import UploadIcon from "@mui/icons-material/Upload";
@@ -49,6 +50,7 @@ import Inventory2OutlinedIcon from "@mui/icons-material/Inventory2Outlined";
 import AddIcon from "@mui/icons-material/Add";
 import EditOutlinedIcon from "@mui/icons-material/EditOutlined";
 import DeleteOutlineIcon from "@mui/icons-material/DeleteOutline";
+import BuildOutlinedIcon from "@mui/icons-material/BuildOutlined";
 import useSettingsStore, {
   DEFAULT_BRAND_COLORS,
 } from "../stores/settingsStore";
@@ -67,6 +69,8 @@ import {
 import { deriveSurfaceAccentPair } from "../theme/colorDerivation";
 import { hasStrictRole } from "../utils/workspaceRoutes";
 import { getClinicDisplayName } from "../utils/clinicBranding";
+import { VISIT_STATUS_CONFIG } from "../utils/visitStatuses";
+import { DEFAULT_LIVEBOARD_RULES } from "../utils/roleUtils";
 import ChartOfAccountPicker from "../components/finance/ChartOfAccountPicker";
 
 const TAB_IDS = ["general", "operation", "inventory", "financial"];
@@ -85,6 +89,781 @@ const TM_STATUS_OPTIONS = [
   { value: "inactive", label: "Inactive" },
   { value: "expire", label: "Expire" },
 ];
+
+const LIVEBOARD_ACTION_LABELS = {
+  open_panel: "Open visit panel",
+  start_consulting: "Start consultation",
+  do_not_consulting: "Skip consultation",
+  open_consulting: "Open consultation room",
+  send_to_preparation: "Send to pre-treatment",
+  proceed_treatment: "Proceed to treatment",
+  start_treatment: "Start treatment session",
+  mark_done: "Mark treatment done",
+  go_to_invoice: "Go to invoice",
+  handover_request: "Request handover",
+  handover_accept: "Accept handover",
+  doctor_handover_request: "Request doctor handover",
+  doctor_handover_accept: "Accept doctor handover",
+};
+
+const OPERATION_DEVELOPER_TOPICS = [
+  {
+    topic: "Visit workflow stages",
+    description:
+      "Rename stages, change order, or add/remove steps such as lab or pharmacy routing.",
+    example:
+      "Waiting → In Consultation → Pre-treatment → Treatment → Billing → Completed",
+  },
+  {
+    topic: "Visit History action buttons",
+    description:
+      "Control which roles can start consultation, send to pre-treatment, mark done, hand over, and more.",
+    example: "Per-action role matrix (see table below)",
+  },
+  {
+    topic: "Appointment booking rules",
+    description:
+      "Slot intervals, minimum lead time, same-day limits, or automatic holiday blocking.",
+    example: "Currently limited to clinic operation hours",
+  },
+  {
+    topic: "Check-in routing",
+    description:
+      "Where a visit lands after patient check-in (waiting queue vs direct to consultation).",
+    example: "Post check-in destination dialog",
+  },
+  {
+    topic: "HR leave & attendance defaults",
+    description:
+      "Default annual/sick leave entitlements, overtime rules, and approval thresholds.",
+    example: "HR leave rules and public holidays modules",
+  },
+  {
+    topic: "Role action permissions",
+    description:
+      "Which roles can create visits, open payments, or manage treatments outside Visit History.",
+    example: "Role and permission matrix",
+  },
+];
+
+const GENERAL_DEVELOPER_TOPICS = [
+  {
+    topic: "Login & sign-in screen",
+    description:
+      "Custom background, welcome copy, demo credentials visibility, or SSO login.",
+    example: "Branded login page with clinic logo",
+  },
+  {
+    topic: "PDF & print layouts",
+    description:
+      "Invoice, receipt, consent form, and letterhead templates with clinic-specific fields.",
+    example: "Clinic profile fields feed PDF headers",
+  },
+  {
+    topic: "Sidebar navigation",
+    description:
+      "Which modules appear, menu order, role-based visibility, and workspace labels.",
+    example: "Role and permission driven navigation",
+  },
+  {
+    topic: "Dark mode behavior",
+    description:
+      "How brand colors map to dark theme accents and personal vs clinic-wide theme.",
+    example: "Light/dark toggle stays per browser",
+  },
+  {
+    topic: "Locale & formatting",
+    description:
+      "Date, time, currency, phone number, and language preferences across the app.",
+    example: "Product defaults (developer can localize)",
+  },
+];
+
+const INVENTORY_DEVELOPER_TOPICS = [
+  {
+    topic: "Low stock & expiry alerts",
+    description:
+      "Thresholds for reorder warnings, expiry lead days, and notification recipients.",
+    example: "Inventory alerts module",
+  },
+  {
+    topic: "Consignment settlement",
+    description:
+      "How consignment usage is billed, settled, and reported to suppliers.",
+    example: "Consignment settlement workflow",
+  },
+  {
+    topic: "Batch & SKU numbering",
+    description:
+      "Auto-generated batch codes, barcode formats, and product code conventions.",
+    example: "Manual batch entry today",
+  },
+  {
+    topic: "Treatment template defaults",
+    description:
+      "Default products per treatment, optional vs required lines, and stock validation rules.",
+    example: "Treatment templates in inventory",
+  },
+  {
+    topic: "Auto COGS posting",
+    description:
+      "When treatment stock deductions create finance journal entries and which accounts are used.",
+    example: "Linked to finance chart of accounts",
+  },
+  {
+    topic: "Product master data",
+    description:
+      "Custom categories, units, types, and fields for clinic-specific product attributes.",
+    example: "Categories, units, and types modules",
+  },
+];
+
+const FINANCIAL_DEVELOPER_TOPICS = [
+  {
+    topic: "Invoice & receipt formats",
+    description:
+      "Number prefixes, padding, branch-specific sequences, and receipt numbering rules.",
+    example: "INV-000001 sequence (editable next #)",
+  },
+  {
+    topic: "Chart of accounts mapping",
+    description:
+      "Default accounts for sales, COGS, tax, discounts, and payment clearing.",
+    example: "Finance chart of accounts module",
+  },
+  {
+    topic: "Tax rules",
+    description:
+      "Multiple tax rates, tax-inclusive pricing, exemptions, and line-level tax behavior.",
+    example: "Single default VAT % when enabled",
+  },
+  {
+    topic: "Payment integrations",
+    description:
+      "Live bank feeds, payment gateways, or automatic reconciliation with transaction methods.",
+    example: "Transaction methods are presets only",
+  },
+  {
+    topic: "Branch accounting",
+    description:
+      "Separate books per branch, inter-branch transfers, and branch default on new documents.",
+    example: "Default branch setting (optional)",
+  },
+  {
+    topic: "Accounting automation",
+    description:
+      "Auto journal entries from invoices, expenses, payroll, and inventory movements.",
+    example: "Finance transactions & journal entries",
+  },
+];
+
+const BRAND_COLOR_REFERENCE = [
+  {
+    key: "primary_color",
+    token: "Primary",
+    usedFor: "Buttons, links, focus rings",
+  },
+  {
+    key: "secondary_color",
+    token: "Secondary",
+    usedFor: "Secondary actions and highlights",
+  },
+  {
+    key: "background_color",
+    token: "Page background",
+    usedFor: "Main canvas behind content (light mode)",
+  },
+  {
+    key: "sidebar_accent_color",
+    token: "Sidebar accent",
+    usedFor: "Active item and avatar accents",
+  },
+];
+
+function formatOperationTimeRange(start, end) {
+  const from = (start || "—").trim();
+  const until = (end || "—").trim();
+  return `${from} – ${until}`;
+}
+
+function humanizeSlug(slug) {
+  return String(slug || "")
+    .replace(/_/g, " ")
+    .replace(/\b\w/g, (c) => c.toUpperCase());
+}
+
+function resolveRoleLabels(slugs, roleOptions) {
+  const list = Array.isArray(slugs) ? slugs : [];
+  if (list.length === 0) return "None selected";
+  const bySlug = new Map(
+    (roleOptions || []).map((role) => [role.slug, role.name || role.slug]),
+  );
+  return list.map((slug) => bySlug.get(slug) || humanizeSlug(slug)).join(", ");
+}
+
+function summarizeLiveboardRules(rules) {
+  const source = rules && typeof rules === "object" ? rules : DEFAULT_LIVEBOARD_RULES;
+  return Object.entries(source).map(([action, roleMap]) => {
+    const enabledRoles = Object.entries(roleMap || {})
+      .filter(([, enabled]) => enabled)
+      .map(([role]) => humanizeSlug(role));
+    return {
+      action,
+      label: LIVEBOARD_ACTION_LABELS[action] || humanizeSlug(action),
+      roles: enabledRoles.length ? enabledRoles.join(", ") : "None",
+    };
+  });
+}
+
+function joinList(values) {
+  const list = (values || []).filter(Boolean);
+  return list.length ? list.join(", ") : "None";
+}
+
+function SettingsReferenceFooter({ area }) {
+  return (
+    <Typography variant="caption" color="text.secondary" sx={{ lineHeight: 1.6 }}>
+      Share this summary with your software developer when planning clinic-specific{" "}
+      {area} changes. Values above reflect saved settings, not unsaved edits.
+    </Typography>
+  );
+}
+
+function ReferenceBlockTitle({ title, chipLabel, chipColor }) {
+  return (
+    <Stack
+      direction="row"
+      spacing={1}
+      alignItems="center"
+      flexWrap="wrap"
+      useFlexGap
+      sx={{ mb: 1.5 }}
+    >
+      <Typography variant="subtitle2" sx={{ fontWeight: 700 }}>
+        {title}
+      </Typography>
+      {chipLabel ? (
+        <Chip
+          label={chipLabel}
+          size="small"
+          color={chipColor}
+          variant="outlined"
+        />
+      ) : null}
+    </Stack>
+  );
+}
+
+function DeveloperTopicsTable({ topics }) {
+  return (
+    <Table size="small">
+      <TableHead>
+        <TableRow>
+          <TableCell>Topic</TableCell>
+          <TableCell>What can be tailored</TableCell>
+          <TableCell>Current behavior</TableCell>
+        </TableRow>
+      </TableHead>
+      <TableBody>
+        {topics.map((row) => (
+          <TableRow key={row.topic}>
+            <TableCell sx={{ fontWeight: 600 }}>{row.topic}</TableCell>
+            <TableCell>{row.description}</TableCell>
+            <TableCell>{row.example}</TableCell>
+          </TableRow>
+        ))}
+      </TableBody>
+    </Table>
+  );
+}
+
+function InAppSettingsTable({ rows }) {
+  return (
+    <Table size="small">
+      <TableHead>
+        <TableRow>
+          <TableCell>Setting</TableCell>
+          <TableCell>Current value</TableCell>
+          <TableCell>Used in</TableCell>
+        </TableRow>
+      </TableHead>
+      <TableBody>
+        {rows.map((row) => (
+          <TableRow key={row.setting}>
+            <TableCell sx={{ fontWeight: 600 }}>{row.setting}</TableCell>
+            <TableCell>{row.value}</TableCell>
+            <TableCell>{row.usedIn}</TableCell>
+          </TableRow>
+        ))}
+      </TableBody>
+    </Table>
+  );
+}
+
+function OperationSettingsReference({ settings, roleOptions }) {
+  const visitStages = Object.values(VISIT_STATUS_CONFIG)
+    .map((cfg) => cfg.label)
+    .join(" → ");
+  const liveboardRows = useMemo(
+    () => summarizeLiveboardRules(settings?.liveboard_rules),
+    [settings?.liveboard_rules],
+  );
+  const inAppRows = useMemo(
+    () => [
+      {
+        setting: "Appointment hours",
+        value: formatOperationTimeRange(
+          settings?.appointment_hours_start,
+          settings?.appointment_hours_end,
+        ),
+        usedIn: "Appointments",
+      },
+      {
+        setting: "HR default shift",
+        value: `${formatOperationTimeRange(
+          settings?.hr_default_shift_start,
+          settings?.hr_default_shift_end,
+        )} · ${settings?.hr_default_grace_minutes ?? 10} min grace`,
+        usedIn: "Attendance & HR",
+      },
+      {
+        setting: "Assign doctor roles",
+        value: resolveRoleLabels(settings?.assign_doctor_roles, roleOptions),
+        usedIn: "Visit History",
+      },
+      {
+        setting: "Visit workflow stages",
+        value: visitStages,
+        usedIn: "Visit History & rooms",
+      },
+    ],
+    [settings, roleOptions, visitStages],
+  );
+
+  return (
+    <SectionCard>
+      <SectionHeader
+        icon={BuildOutlinedIcon}
+        title="Operation configuration reference"
+        description="Current operation setup and areas your clinic can discuss with the software developer when requesting customized operation settings."
+      />
+      <Box sx={{ px: { xs: 2.5, sm: 3, md: 4 }, py: { xs: 3, md: 4 } }}>
+        <Stack spacing={3.5}>
+          <Box>
+            <ReferenceBlockTitle
+              title="Settings configured in this tab"
+              chipLabel="Editable here"
+              chipColor="primary"
+            />
+            <InAppSettingsTable rows={inAppRows.slice(0, 3)} />
+          </Box>
+
+          <Box>
+            <ReferenceBlockTitle
+              title="Visit workflow"
+              chipLabel="Developer customization"
+            />
+            <Typography variant="body2" color="text.secondary" sx={{ mb: 1.5 }}>
+              {visitStages}
+            </Typography>
+            <Table size="small">
+              <TableHead>
+                <TableRow>
+                  <TableCell>Stage key</TableCell>
+                  <TableCell>Display label</TableCell>
+                </TableRow>
+              </TableHead>
+              <TableBody>
+                {Object.entries(VISIT_STATUS_CONFIG).map(([key, cfg]) => (
+                  <TableRow key={key}>
+                    <TableCell
+                      sx={{
+                        fontFamily:
+                          "ui-monospace, SFMono-Regular, Menlo, monospace",
+                        fontSize: 12,
+                      }}
+                    >
+                      {key}
+                    </TableCell>
+                    <TableCell>{cfg.label}</TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </Box>
+
+          <Box>
+            <ReferenceBlockTitle
+              title="Visit History button permissions"
+              chipLabel="Developer customization"
+            />
+            <Table size="small">
+              <TableHead>
+                <TableRow>
+                  <TableCell>Action</TableCell>
+                  <TableCell>Allowed roles</TableCell>
+                </TableRow>
+              </TableHead>
+              <TableBody>
+                {liveboardRows.map((row) => (
+                  <TableRow key={row.action}>
+                    <TableCell sx={{ fontWeight: 600 }}>{row.label}</TableCell>
+                    <TableCell>{row.roles}</TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </Box>
+
+          <Box>
+            <ReferenceBlockTitle
+              title="Additional operation customizations"
+              chipLabel="Discuss with developer"
+            />
+            <DeveloperTopicsTable topics={OPERATION_DEVELOPER_TOPICS} />
+          </Box>
+
+          <SettingsReferenceFooter area="operation" />
+        </Stack>
+      </Box>
+    </SectionCard>
+  );
+}
+
+function GeneralSettingsReference({ settings }) {
+  const inAppRows = useMemo(
+    () => [
+      {
+        setting: "Clinic name",
+        value: settings?.clinic_name || "—",
+        usedIn: "Sidebar, login, PDFs",
+      },
+      {
+        setting: "Description",
+        value: settings?.clinic_description || "—",
+        usedIn: "Profile & documents",
+      },
+      {
+        setting: "Address",
+        value: settings?.clinic_address || "—",
+        usedIn: "Letterhead & receipts",
+      },
+      {
+        setting: "Phone numbers",
+        value: joinList(settings?.clinic_phones),
+        usedIn: "Contact details",
+      },
+      {
+        setting: "Email addresses",
+        value: joinList(settings?.clinic_emails),
+        usedIn: "Contact details",
+      },
+      {
+        setting: "Website",
+        value: settings?.clinic_website || "—",
+        usedIn: "Profile & documents",
+      },
+      {
+        setting: "Logo",
+        value: settings?.logo_url ? "Uploaded" : "Not set",
+        usedIn: "Sidebar & sign-in",
+      },
+    ],
+    [settings],
+  );
+
+  const colorRows = useMemo(
+    () =>
+      BRAND_COLOR_REFERENCE.map((row) => ({
+        token: row.token,
+        value:
+          settings?.[row.key] ||
+          DEFAULT_BRAND_COLORS[row.key] ||
+          "—",
+        usedFor: row.usedFor,
+      })),
+    [settings],
+  );
+
+  return (
+    <SectionCard>
+      <SectionHeader
+        icon={BuildOutlinedIcon}
+        title="General configuration reference"
+        description="Current clinic profile, branding, and areas your clinic can discuss with the software developer when requesting customized general settings."
+      />
+      <Box sx={{ px: { xs: 2.5, sm: 3, md: 4 }, py: { xs: 3, md: 4 } }}>
+        <Stack spacing={3.5}>
+          <Box>
+            <ReferenceBlockTitle
+              title="Settings configured in this tab"
+              chipLabel="Editable here"
+              chipColor="primary"
+            />
+            <InAppSettingsTable rows={inAppRows} />
+          </Box>
+
+          <Box>
+            <ReferenceBlockTitle
+              title="Brand color tokens"
+              chipLabel="Editable here"
+              chipColor="primary"
+            />
+            <Table size="small">
+              <TableHead>
+                <TableRow>
+                  <TableCell>Token</TableCell>
+                  <TableCell>Current value</TableCell>
+                  <TableCell>Used for</TableCell>
+                </TableRow>
+              </TableHead>
+              <TableBody>
+                {colorRows.map((row) => (
+                  <TableRow key={row.token}>
+                    <TableCell sx={{ fontWeight: 600 }}>{row.token}</TableCell>
+                    <TableCell
+                      sx={{
+                        fontFamily:
+                          "ui-monospace, SFMono-Regular, Menlo, monospace",
+                        fontSize: 12,
+                      }}
+                    >
+                      {row.value}
+                    </TableCell>
+                    <TableCell>{row.usedFor}</TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </Box>
+
+          <Box>
+            <ReferenceBlockTitle
+              title="Additional general customizations"
+              chipLabel="Discuss with developer"
+            />
+            <DeveloperTopicsTable topics={GENERAL_DEVELOPER_TOPICS} />
+          </Box>
+
+          <SettingsReferenceFooter area="general" />
+        </Stack>
+      </Box>
+    </SectionCard>
+  );
+}
+
+function InventorySettingsReference({ settings }) {
+  const fifoPreference =
+    settings?.inventory_fifo_ownership_preference === "consignment"
+      ? "Consignment batches first"
+      : "Purchased batches first";
+
+  const inAppRows = useMemo(
+    () => [
+      {
+        setting: "Treatment stock deduction",
+        value: fifoPreference,
+        usedIn: "Treatment sessions",
+      },
+    ],
+    [fifoPreference],
+  );
+
+  return (
+    <SectionCard>
+      <SectionHeader
+        icon={BuildOutlinedIcon}
+        title="Inventory configuration reference"
+        description="Current inventory behavior and areas your clinic can discuss with the software developer when requesting customized inventory settings."
+      />
+      <Box sx={{ px: { xs: 2.5, sm: 3, md: 4 }, py: { xs: 3, md: 4 } }}>
+        <Stack spacing={3.5}>
+          <Box>
+            <ReferenceBlockTitle
+              title="Settings configured in this tab"
+              chipLabel="Editable here"
+              chipColor="primary"
+            />
+            <InAppSettingsTable rows={inAppRows} />
+          </Box>
+
+          <Box>
+            <ReferenceBlockTitle
+              title="Stock deduction behavior"
+              chipLabel="Developer customization"
+            />
+            <Typography variant="body2" color="text.secondary" sx={{ mb: 1.5 }}>
+              FIFO applies within each ownership group (nearest expiry first).
+              The preferred group is used first during treatments; remaining need
+              is fulfilled from the other group automatically.
+            </Typography>
+            <Table size="small">
+              <TableHead>
+                <TableRow>
+                  <TableCell>Rule</TableCell>
+                  <TableCell>Current behavior</TableCell>
+                </TableRow>
+              </TableHead>
+              <TableBody>
+                <TableRow>
+                  <TableCell sx={{ fontWeight: 600 }}>Expiry ordering</TableCell>
+                  <TableCell>FIFO within purchased and consignment groups</TableCell>
+                </TableRow>
+                <TableRow>
+                  <TableCell sx={{ fontWeight: 600 }}>Preferred group</TableCell>
+                  <TableCell>{fifoPreference}</TableCell>
+                </TableRow>
+                <TableRow>
+                  <TableCell sx={{ fontWeight: 600 }}>Fallback</TableCell>
+                  <TableCell>
+                    Remaining quantity taken from the other ownership group
+                  </TableCell>
+                </TableRow>
+              </TableBody>
+            </Table>
+          </Box>
+
+          <Box>
+            <ReferenceBlockTitle
+              title="Additional inventory customizations"
+              chipLabel="Discuss with developer"
+            />
+            <DeveloperTopicsTable topics={INVENTORY_DEVELOPER_TOPICS} />
+          </Box>
+
+          <SettingsReferenceFooter area="inventory" />
+        </Stack>
+      </Box>
+    </SectionCard>
+  );
+}
+
+function FinancialSettingsReference({
+  settings,
+  branches,
+  transactionMethods,
+}) {
+  const defaultBranch =
+    branches.find((b) => String(b.id) === String(settings?.default_branch_id))
+      ?.name || "Not set";
+  const vatSummary = settings?.vat_enabled
+    ? `On · ${settings?.default_vat_percent ?? 0}% default when line tax is 0`
+    : "Off";
+
+  const inAppRows = useMemo(
+    () => [
+      {
+        setting: "Next invoice number",
+        value: settings?.invoice_next_number ?? "—",
+        usedIn: "Paid invoices (INV-000001)",
+      },
+      {
+        setting: "Tax on invoices",
+        value: vatSummary,
+        usedIn: "New invoice lines",
+      },
+      {
+        setting: "Default branch",
+        value: defaultBranch,
+        usedIn: "Invoices & payments",
+      },
+    ],
+    [settings?.invoice_next_number, vatSummary, defaultBranch],
+  );
+
+  const transactionMethodRows = useMemo(
+    () =>
+      (transactionMethods || []).map((row) => ({
+        id: row.id,
+        name: row.name,
+        ledger:
+          LEDGER_KIND_OPTIONS.find((o) => o.value === row.ledger_kind)?.label ||
+          row.ledger_kind ||
+          "—",
+        coa: row.chart_of_account
+          ? `${row.chart_of_account.code ? `${row.chart_of_account.code} — ` : ""}${row.chart_of_account.name || ""}`.trim()
+          : "—",
+        default: row.is_default ? "Yes" : "—",
+        status: row.status || "—",
+      })),
+    [transactionMethods],
+  );
+
+  return (
+    <SectionCard>
+      <SectionHeader
+        icon={BuildOutlinedIcon}
+        title="Financial configuration reference"
+        description="Current finance defaults and areas your clinic can discuss with the software developer when requesting customized financial settings."
+      />
+      <Box sx={{ px: { xs: 2.5, sm: 3, md: 4 }, py: { xs: 3, md: 4 } }}>
+        <Stack spacing={3.5}>
+          <Box>
+            <ReferenceBlockTitle
+              title="Settings configured in this tab"
+              chipLabel="Editable here"
+              chipColor="primary"
+            />
+            <InAppSettingsTable rows={inAppRows} />
+          </Box>
+
+          <Box>
+            <ReferenceBlockTitle
+              title="Transaction methods"
+              chipLabel={
+                transactionMethodRows.length ? "Editable here" : "Owner access"
+              }
+              chipColor={
+                transactionMethodRows.length ? "primary" : undefined
+              }
+            />
+            {transactionMethodRows.length ? (
+              <Table size="small">
+                <TableHead>
+                  <TableRow>
+                    <TableCell>Name</TableCell>
+                    <TableCell>Ledger</TableCell>
+                    <TableCell>Linked COA</TableCell>
+                    <TableCell>Default</TableCell>
+                    <TableCell>Status</TableCell>
+                  </TableRow>
+                </TableHead>
+                <TableBody>
+                  {transactionMethodRows.map((row) => (
+                    <TableRow key={row.id}>
+                      <TableCell sx={{ fontWeight: 600 }}>{row.name}</TableCell>
+                      <TableCell>{row.ledger}</TableCell>
+                      <TableCell>{row.coa}</TableCell>
+                      <TableCell>{row.default}</TableCell>
+                      <TableCell sx={{ textTransform: "capitalize" }}>
+                        {row.status}
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            ) : (
+              <Typography variant="body2" color="text.secondary">
+                Transaction method details are available to owner accounts in
+                this tab.
+              </Typography>
+            )}
+          </Box>
+
+          <Box>
+            <ReferenceBlockTitle
+              title="Additional financial customizations"
+              chipLabel="Discuss with developer"
+            />
+            <DeveloperTopicsTable topics={FINANCIAL_DEVELOPER_TOPICS} />
+          </Box>
+
+          <SettingsReferenceFooter area="financial" />
+        </Stack>
+      </Box>
+    </SectionCard>
+  );
+}
 
 function SectionCard({ children, sx = {} }) {
   const theme = useTheme();
@@ -528,11 +1307,13 @@ export default function SettingsPage() {
   );
 
   useEffect(() => {
-    if (tab !== "financial" || !canManageTransactionMethods) {
+    if (tab !== "financial") {
       return undefined;
     }
     let cancelled = false;
-    setTmLoading(true);
+    if (canManageTransactionMethods) {
+      setTmLoading(true);
+    }
     getTransactionMethods()
       .then((rows) => {
         if (!cancelled) {
@@ -545,7 +1326,7 @@ export default function SettingsPage() {
         }
       })
       .finally(() => {
-        if (!cancelled) {
+        if (!cancelled && canManageTransactionMethods) {
           setTmLoading(false);
         }
       });
@@ -1413,6 +2194,13 @@ export default function SettingsPage() {
           </SectionCard>
         )}
 
+        {tab === "operation" && (
+          <OperationSettingsReference
+            settings={settings}
+            roleOptions={roleOptions}
+          />
+        )}
+
         {tab === "inventory" && (
           <SectionCard>
             <SectionHeader
@@ -1450,6 +2238,10 @@ export default function SettingsPage() {
               </FormControl>
             </Box>
           </SectionCard>
+        )}
+
+        {tab === "inventory" && (
+          <InventorySettingsReference settings={settings} />
         )}
 
         {tab === "financial" && (
@@ -1886,6 +2678,14 @@ export default function SettingsPage() {
           </>
         )}
 
+        {tab === "financial" && (
+          <FinancialSettingsReference
+            settings={settings}
+            branches={branches}
+            transactionMethods={transactionMethods}
+          />
+        )}
+
         {tab === "general" && (
           <SectionCard>
             <SectionHeader
@@ -2020,6 +2820,10 @@ export default function SettingsPage() {
               </Box>
             </Box>
           </SectionCard>
+        )}
+
+        {tab === "general" && (
+          <GeneralSettingsReference settings={settings} />
         )}
 
         <SectionCard

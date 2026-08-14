@@ -560,8 +560,9 @@ export default function LoginPage() {
         sx={{
           flex: "1 0 auto",
           display: "flex",
-          alignItems: "flex-start",
           justifyContent: "center",
+          alignItems: { xs: "flex-start", md: "center" },
+          minHeight: { md: "calc(100% - 4px)" },
           px: { xs: 2, sm: 3 },
           py: { xs: 2, sm: 3, md: 4 },
           pb: {
@@ -574,55 +575,40 @@ export default function LoginPage() {
           sx={{
             width: "100%",
             maxWidth: showDemo ? { xs: 440, md: 920 } : 440,
-            borderRadius: { xs: 1, md: 2 },
-            overflow: "hidden",
-            bgcolor: "background.paper",
-            boxShadow: isLight
-              ? `0 8px 40px ${brandRgba("text", 0.08)}, 0 2px 8px ${brandRgba("text", 0.04)}`
-              : 8,
-            border: 1,
-            borderColor: isDark
-              ? alpha(theme.palette.common.white, 0.08)
-              : alpha(BRAND_COLORS.primary, 0.08),
           }}
         >
-          {showDemo && isDesktop ? (
-            <Box
-              sx={{
-                display: "grid",
-                gridTemplateColumns: "1fr 1fr",
-                alignItems: "stretch",
-              }}
-            >
+          <Box
+            sx={{
+              borderRadius: { xs: 1, md: 2 },
+              overflow: "hidden",
+              bgcolor: "background.paper",
+              boxShadow: isLight
+                ? `0 8px 40px ${brandRgba("text", 0.08)}, 0 2px 8px ${brandRgba("text", 0.04)}`
+                : 8,
+              border: 1,
+              borderColor: isDark
+                ? alpha(theme.palette.common.white, 0.08)
+                : alpha(BRAND_COLORS.primary, 0.08),
+            }}
+          >
+            {showDemo && isDesktop ? (
               <Box
                 sx={{
-                  borderRight: 1,
-                  borderColor: "divider",
+                  display: "grid",
+                  gridTemplateColumns: "1fr 1fr",
+                  alignItems: "stretch",
                 }}
               >
-                {loginPanel}
-              </Box>
-              <Box
-                sx={{
-                  bgcolor: isDark
-                    ? alpha(theme.palette.primary.main, 0.06)
-                    : alpha(BRAND_COLORS.primary, 0.04),
-                }}
-              >
-                <DemoAccountPanel
-                  accounts={DEMO_LOGIN_ACCOUNTS}
-                  onSelect={handleDemoSelect}
-                />
-              </Box>
-            </Box>
-          ) : (
-            <Box>
-              {loginPanel}
-              {showDemo ? (
                 <Box
                   sx={{
-                    borderTop: 1,
+                    borderRight: 1,
                     borderColor: "divider",
+                  }}
+                >
+                  {loginPanel}
+                </Box>
+                <Box
+                  sx={{
                     bgcolor: isDark
                       ? alpha(theme.palette.primary.main, 0.06)
                       : alpha(BRAND_COLORS.primary, 0.04),
@@ -631,40 +617,56 @@ export default function LoginPage() {
                   <DemoAccountPanel
                     accounts={DEMO_LOGIN_ACCOUNTS}
                     onSelect={handleDemoSelect}
-                    compact
                   />
                 </Box>
-              ) : null}
-            </Box>
-          )}
-        </Box>
-      </Box>
+              </Box>
+            ) : (
+              <Box>
+                {loginPanel}
+                {showDemo ? (
+                  <Box
+                    sx={{
+                      borderTop: 1,
+                      borderColor: "divider",
+                      bgcolor: isDark
+                        ? alpha(theme.palette.primary.main, 0.06)
+                        : alpha(BRAND_COLORS.primary, 0.04),
+                    }}
+                  >
+                    <DemoAccountPanel
+                      accounts={DEMO_LOGIN_ACCOUNTS}
+                      onSelect={handleDemoSelect}
+                      compact
+                    />
+                  </Box>
+                ) : null}
+              </Box>
+            )}
+          </Box>
 
-      <Box
-        sx={{
-          flexShrink: 0,
-          textAlign: "center",
-          pb: {
-            xs: "calc(16px + env(safe-area-inset-bottom, 0px))",
-            md: 2.5,
-          },
-          px: 2,
-        }}
-      >
-        <Typography variant="body2" color="text.disabled">
-          {clinicTitle} · Secure clinic management
-        </Typography>
-        <Typography variant="caption" color="text.disabled">
-          Powered by{" "}
-          <a
-            href="https://ihtechno.com"
-            target="_blank"
-            rel="noopener noreferrer"
-            style={{ color: "inherit", textDecoration: "underline" }}
+          <Box
+            sx={{
+              mt: { xs: 2, md: 2.5 },
+              textAlign: "center",
+              px: 1,
+            }}
           >
-            Ihtechno
-          </a>
-        </Typography>
+            <Typography variant="body2" color="text.disabled">
+              {clinicTitle} · Secure clinic management
+            </Typography>
+            <Typography variant="caption" color="text.disabled">
+              Powered by{" "}
+              <a
+                href="https://ihtechno.com"
+                target="_blank"
+                rel="noopener noreferrer"
+                style={{ color: "inherit", textDecoration: "underline" }}
+              >
+                Ihtechno
+              </a>
+            </Typography>
+          </Box>
+        </Box>
       </Box>
     </Box>
   );

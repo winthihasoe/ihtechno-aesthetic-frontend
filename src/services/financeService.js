@@ -229,7 +229,9 @@ export const getSuppliers = async () => {
 
 export const listChartOfAccounts = async (params = {}) => {
   const { data } = await apiClient.get("/chart-of-accounts", { params });
-  return data;
+  if (Array.isArray(data)) return data;
+  if (Array.isArray(data?.data)) return data.data;
+  return [];
 };
 
 export const createChartOfAccount = async (payload) => {

@@ -3,6 +3,7 @@ import { Link, useLocation } from "react-router-dom";
 import {
   Box,
   Button,
+  Chip,
   CircularProgress,
   IconButton,
   InputAdornment,
@@ -25,6 +26,7 @@ import useSettingsStore from "../../stores/settingsStore";
 import useAuthStore from "../../stores/authStore";
 import { hasPermission } from "../../utils/accessUtils";
 import { buildOrgTreeData, staffNodeId } from "../../utils/buildOrgTreeData";
+import { getDepartmentColor } from "../../utils/hrDepartmentColors";
 
 export default function OrganizationStructurePage() {
   const location = useLocation();
@@ -72,6 +74,17 @@ export default function OrganizationStructurePage() {
     () => buildOrgTreeData(staff, { organizationLabel }),
     [organizationLabel, staff],
   );
+
+  const departmentLegend = useMemo(() => {
+    const seen = new Map();
+    treeData.nodes.forEach((node) => {
+      if (node.data?.isVirtual || node.data?.isSyntheticManager) return;
+      const name = node.data?.departmentName;
+      if (!name || seen.has(name)) return;
+      seen.set(name, node.data?.departmentColor ?? getDepartmentColor(name));
+    });
+    return [...seen.entries()].sort(([a], [b]) => a.localeCompare(b));
+  }, [treeData.nodes]);
 
   const showEmptyState =
     !loading && treeData.staffCount > 0 && !treeData.hasReportingLines;
@@ -249,9 +262,34 @@ export default function OrganizationStructurePage() {
         ) : null}
 
         {!loading && !showEmptyState && treeData.nodes.length > 0 ? (
-          <Typography variant="caption" color="text.secondary">
-            Click a person to set or change their reporting manager.
-          </Typography>
+          <Stack spacing={1}>
+            {departmentLegend.length > 0 ? (
+              <Stack direction="row" spacing={0.75} useFlexGap flexWrap="wrap" alignItems="center">
+                <Typography variant="caption" color="text.secondary" sx={{ mr: 0.5 }}>
+                  Departments
+                </Typography>
+                {departmentLegend.map(([name, colors]) => (
+                  <Chip
+                    key={name}
+                    label={name}
+                    size="small"
+                    sx={{
+                      height: 24,
+                      fontWeight: 700,
+                      bgcolor: colors.chipBg,
+                      color: colors.chipText,
+                      borderLeft: 3,
+                      borderLeftColor: colors.accent,
+                      borderRadius: 1,
+                    }}
+                  />
+                ))}
+              </Stack>
+            ) : null}
+            <Typography variant="caption" color="text.secondary">
+              Click a person to set or change their reporting manager.
+            </Typography>
+          </Stack>
         ) : null}
 
         {!loading && !showEmptyState && treeData.nodes.length > 0 ? (

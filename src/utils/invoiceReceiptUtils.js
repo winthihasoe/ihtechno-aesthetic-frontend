@@ -4,7 +4,7 @@ export const formatReceiptMoney = (value) => formatKyats(Number(value || 0));
 
 /** Strip internal audit-only suffixes from labels on printed / customer-facing invoice. */
 export const labelForPrintedInvoice = (line) => {
-  let s = String(line?.label || "").trim();
+  let s = String(line?.label || line?.name || "").trim();
   if (!s) return "-";
   s = s.replace(/\s*\(Applied by cashier\)/gi, "").trim();
   return s || "-";

@@ -110,6 +110,12 @@ export default function JournalEntrySourceDetails({
 }) {
   const prefix = rolePrefix || "";
   const sourceTypeLabel = journalSourceTypeLabel(entry?.source_type);
+  const title =
+    entry?.name ?? entry?.description ?? entry?.memo ?? "Journal entry";
+  const description = String(entry?.description ?? "").trim();
+  const memo = String(entry?.memo ?? "").trim();
+  const showDescription = Boolean(description);
+  const showMemo = Boolean(memo) && memo !== description && memo !== title;
   const reversedLabel = entry?.reversed_at
     ? `Reversed ${formatPostedAt(entry.reversed_at) ?? ""}`.trim()
     : null;
@@ -126,21 +132,42 @@ export default function JournalEntrySourceDetails({
       }}
     >
       <Typography sx={{ fontSize: "0.8125rem", fontWeight: 700, mb: 0.75 }}>
-        {entry?.name ?? entry?.memo ?? "Journal entry"}
+        {title}
       </Typography>
 
       <Stack direction="row" spacing={0.75} alignItems="center" flexWrap="wrap" sx={{ mb: 1 }}>
-        <Chip
-          size="small"
-          label={sourceTypeLabel}
-          color={sourceChipColor(entry?.source_type)}
-          variant="outlined"
-          sx={{ fontWeight: 600, fontSize: "0.6875rem", height: 22 }}
-        />
+        {sourceTypeLabel ? (
+          <Chip
+            size="small"
+            label={sourceTypeLabel}
+            color={sourceChipColor(entry?.source_type)}
+            variant="outlined"
+            sx={{ fontWeight: 600, fontSize: "0.6875rem", height: 22 }}
+          />
+        ) : null}
         {entry?.source_label ? (
-          <Typography variant="caption" color="text.secondary">
-            {entry.source_label}
-          </Typography>
+          <Chip
+            size="small"
+            label={entry.source_label}
+            variant="outlined"
+            color={entry.is_manual ? "primary" : "default"}
+            sx={{ fontWeight: 600, fontSize: "0.6875rem", height: 22 }}
+          />
+        ) : null}
+        {entry?.entry_category_label ? (
+          <Chip
+            size="small"
+            label={entry.entry_category_label}
+            variant="filled"
+            color={
+              entry.entry_category === "income"
+                ? "success"
+                : entry.entry_category === "expense"
+                  ? "warning"
+                  : "info"
+            }
+            sx={{ fontWeight: 600, fontSize: "0.6875rem", height: 22 }}
+          />
         ) : null}
         {entry?.reversed_at ? (
           <Chip
@@ -154,7 +181,10 @@ export default function JournalEntrySourceDetails({
       </Stack>
 
       <Stack spacing={0.5}>
-        {entry?.memo ? <DetailRow label="Memo">{entry.memo}</DetailRow> : null}
+        {showDescription ? (
+          <DetailRow label="Description">{description}</DetailRow>
+        ) : null}
+        {showMemo ? <DetailRow label="Memo">{memo}</DetailRow> : null}
         {entry?.source_reference ? (
           <DetailRow label="Reference">
             <SourceNavLink

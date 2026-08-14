@@ -26,12 +26,12 @@ export const normalizePaymentLines = (items) => {
   if (!items) return [];
   if (Array.isArray(items)) {
     return items.map((item) => ({
-      type: "other",
-      label: item?.name || "",
-      qty: 1,
-      unit_price: Number(item?.price || 0),
-      line_total: Number(item?.price || 0),
-      meta: {},
+      type: item?.type || "other",
+      label: item?.label || item?.name || "",
+      qty: Number(item?.qty ?? 1),
+      unit_price: Number(item?.unit_price ?? item?.price ?? 0),
+      line_total: Number(item?.line_total ?? item?.price ?? 0),
+      meta: item?.meta || {},
     }));
   }
   if (!Array.isArray(items.lines)) return [];
@@ -42,7 +42,7 @@ export const normalizePaymentLines = (items) => {
     const base = {
       ...line,
       type,
-      label: line?.label || "",
+      label: line?.label || line?.name || "",
       qty,
       unit_price: unitPrice,
       discount_type: line?.discount_type || "none",

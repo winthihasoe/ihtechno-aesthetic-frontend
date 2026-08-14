@@ -41,6 +41,16 @@ const FORM_TYPE_META = {
   questionnaire: { label: "Questionnaire", color: "info" },
   consent: { label: "Consent", color: "warning", filled: true },
   intake: { label: "Intake", color: "primary" },
+  procedure: {
+    label: "Procedure",
+    filled: true,
+    sx: {
+      fontWeight: 700,
+      bgcolor: "primary.dark",
+      color: "#fff",
+      border: "none",
+    },
+  },
   other: { label: "Document", color: "default" },
 };
 
@@ -49,6 +59,7 @@ const TYPE_FILTERS = [
   { value: "intake", label: "Intake" },
   { value: "questionnaire", label: "Questionnaire" },
   { value: "consent", label: "Consent" },
+  { value: "procedure", label: "Procedure" },
   { value: "other", label: "Document" },
 ];
 
@@ -286,11 +297,10 @@ export default function FormsPage() {
                             label={typeMeta.label}
                             color={typeMeta.color}
                             variant={typeMeta.filled ? "filled" : "outlined"}
-                            sx={
-                              typeMeta.filled
-                                ? { fontWeight: 700 }
-                                : undefined
-                            }
+                            sx={{
+                              ...(typeMeta.filled ? { fontWeight: 700 } : null),
+                              ...typeMeta.sx,
+                            }}
                           />
                         </TableCell>
                         <TableCell align="center">{fieldsCount}</TableCell>
@@ -359,6 +369,7 @@ export default function FormsPage() {
               <MenuItem value="intake">Intake</MenuItem>
               <MenuItem value="questionnaire">Questionnaire</MenuItem>
               <MenuItem value="consent">Consent</MenuItem>
+              <MenuItem value="procedure">Procedure</MenuItem>
               <MenuItem value="other">Document</MenuItem>
             </TextField>
           </Stack>

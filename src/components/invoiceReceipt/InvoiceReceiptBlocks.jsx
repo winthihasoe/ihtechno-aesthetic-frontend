@@ -382,8 +382,9 @@ export function InvoiceReceiptLineTable({
   tableSize = "small",
 }) {
   const isPreview = layout === "preview";
+  const invoiceLines = Array.isArray(lines) ? lines : [];
 
-  const body = lines.flatMap((line, index) => {
+  const body = invoiceLines.flatMap((line, index) => {
     const gross = computeLineSubtotalBeforeDiscount(line);
     const net = computeLineTotal(line);
     const discTaken = computeRowDiscountTaken(line);
@@ -623,6 +624,7 @@ export function InvoiceReceiptPreviewCard({
         maxWidth: "100%",
         display: "flex",
         flexDirection: "column",
+        overflow: "visible",
         "@media screen": {
           minHeight: "200mm",
         },
@@ -637,7 +639,6 @@ export function InvoiceReceiptPreviewCard({
           flex: "1 1 auto",
           display: "flex",
           flexDirection: "column",
-          minHeight: 0,
         }}
       >
         <InvoiceReceiptHeader

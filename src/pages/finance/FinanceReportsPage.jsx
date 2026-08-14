@@ -374,16 +374,7 @@ export default function FinanceReportsPage() {
   };
 
   return (
-    <Box
-      sx={{
-        p: { xs: 2, md: 3 },
-        pb: 6,
-        width: "100%",
-        maxWidth: { xs: "100%", md: 1280 },
-        mx: "auto",
-        boxSizing: "border-box",
-      }}
-    >
+    <Box>
       <Stack
         direction="row"
         spacing={1.5}

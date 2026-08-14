@@ -158,8 +158,9 @@ export default function OtherIncomePage() {
   const highlightMatch = useMemo(() => {
     if (!pendingHighlight) return null;
     return (
-      pagedRows.find((row) => matchesOtherIncomeHighlight(row, pendingHighlight)) ??
-      null
+      pagedRows.find((row) =>
+        matchesOtherIncomeHighlight(row, pendingHighlight),
+      ) ?? null
     );
   }, [pagedRows, pendingHighlight]);
 
@@ -168,7 +169,8 @@ export default function OtherIncomePage() {
     found: Boolean(highlightMatch),
     onMissed: () => {
       pushToast({
-        message: "That other income entry is not visible with the current filters.",
+        message:
+          "That other income entry is not visible with the current filters.",
         severity: "info",
       });
     },
@@ -233,10 +235,11 @@ export default function OtherIncomePage() {
       </Stack>
 
       <Alert severity="info" sx={{ mb: 2, borderRadius: 2 }}>
-        Record income that does <strong>not</strong> come from a patient invoice —
-        e.g. cafeteria rent, sponsorships, training fees or bank interest. Each
-        entry posts to a chart-of-account and appears in financial reports.
-        Reverse a mistaken entry with <strong>Void</strong> rather than deleting.
+        Record income that does <strong>not</strong> come from a patient invoice
+        — e.g. cafeteria rent, sponsorships, training fees or bank interest.
+        Each entry posts to a chart-of-account and appears in financial reports.
+        Reverse a mistaken entry with <strong>Void</strong> rather than
+        deleting.
       </Alert>
 
       <Accordion
@@ -363,7 +366,11 @@ export default function OtherIncomePage() {
       ) : grouped.length === 0 ? (
         <Alert severity="info">No other income entries found.</Alert>
       ) : (
-        <TableContainer component={Paper} variant="outlined" sx={{ borderRadius: 2 }}>
+        <TableContainer
+          component={Paper}
+          variant="outlined"
+          sx={{ borderRadius: 2 }}
+        >
           <Table size="small" stickyHeader>
             <TableHead>
               <TableRow>
@@ -428,80 +435,80 @@ export default function OtherIncomePage() {
                           pendingHighlight?.highlightColumn === "row");
 
                       return (
-                      <TableRow
-                        key={row.id}
-                        hover
-                        ref={isHighlightRow ? highlightRowRef : undefined}
-                      >
-                        <TableCell
-                          sx={financeHighlightCellSx(
-                            highlightSourceId || highlightReference,
-                          )}
+                        <TableRow
+                          key={row.id}
+                          hover
+                          ref={isHighlightRow ? highlightRowRef : undefined}
                         >
-                          {highlightSourceId ? (
-                            <Typography
-                              component="span"
-                              variant="caption"
-                              sx={{
-                                display: "block",
-                                fontVariantNumeric: "tabular-nums",
-                                fontWeight: 700,
-                                color: "info.main",
-                              }}
-                            >
-                              ID #{row.id}
-                            </Typography>
-                          ) : null}
-                          {row.reference_number || "-"}
-                        </TableCell>
-                        <TableCell>
-                          {row.chart_of_account?.code} -{" "}
-                          {row.chart_of_account?.name}
-                        </TableCell>
-                        <TableCell sx={{ textTransform: "capitalize" }}>
-                          {row.payment_method || "-"}
-                        </TableCell>
-                        <TableCell>
-                          <Chip
-                            size="small"
-                            color={
-                              row.status === "void" ? "default" : "success"
-                            }
-                            label={row.status === "void" ? "Void" : "Posted"}
-                          />
-                        </TableCell>
-                        <TableCell align="right">
-                          {formatKyats(row.amount)}
-                        </TableCell>
-                        <TableCell align="right">
-                          <Stack
-                            direction="row"
-                            justifyContent="flex-end"
-                            spacing={1}
-                          >
-                            {canManage && row.status !== "void" && (
-                              <>
-                                <Button
-                                  size="small"
-                                  startIcon={<EditIcon />}
-                                  onClick={() => navigate(`${row.id}/edit`)}
-                                >
-                                  Edit
-                                </Button>
-                                <Button
-                                  size="small"
-                                  color="warning"
-                                  startIcon={<BlockIcon />}
-                                  onClick={() => setVoidRow(row)}
-                                >
-                                  Void
-                                </Button>
-                              </>
+                          <TableCell
+                            sx={financeHighlightCellSx(
+                              highlightSourceId || highlightReference,
                             )}
-                          </Stack>
-                        </TableCell>
-                      </TableRow>
-                    );
+                          >
+                            {highlightSourceId ? (
+                              <Typography
+                                component="span"
+                                variant="caption"
+                                sx={{
+                                  display: "block",
+                                  fontVariantNumeric: "tabular-nums",
+                                  fontWeight: 700,
+                                  color: "info.main",
+                                }}
+                              >
+                                ID #{row.id}
+                              </Typography>
+                            ) : null}
+                            {row.reference_number || "-"}
+                          </TableCell>
+                          <TableCell>
+                            {row.chart_of_account?.code} -{" "}
+                            {row.chart_of_account?.name}
+                          </TableCell>
+                          <TableCell sx={{ textTransform: "capitalize" }}>
+                            {row.payment_method || "-"}
+                          </TableCell>
+                          <TableCell>
+                            <Chip
+                              size="small"
+                              color={
+                                row.status === "void" ? "default" : "success"
+                              }
+                              label={row.status === "void" ? "Void" : "Posted"}
+                            />
+                          </TableCell>
+                          <TableCell align="right">
+                            {formatKyats(row.amount)}
+                          </TableCell>
+                          <TableCell align="right">
+                            <Stack
+                              direction="row"
+                              justifyContent="flex-end"
+                              spacing={1}
+                            >
+                              {canManage && row.status !== "void" && (
+                                <>
+                                  <Button
+                                    size="small"
+                                    startIcon={<EditIcon />}
+                                    onClick={() => navigate(`${row.id}/edit`)}
+                                  >
+                                    Edit
+                                  </Button>
+                                  <Button
+                                    size="small"
+                                    color="warning"
+                                    startIcon={<BlockIcon />}
+                                    onClick={() => setVoidRow(row)}
+                                  >
+                                    Void
+                                  </Button>
+                                </>
+                              )}
+                            </Stack>
+                          </TableCell>
+                        </TableRow>
+                      );
                     })}
                   </Fragment>
                 );

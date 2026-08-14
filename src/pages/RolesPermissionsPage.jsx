@@ -39,6 +39,32 @@ const EMPTY_FORM = {
   permissionCodes: [],
 };
 
+const resolvePermissionCode = (permission) => {
+  if (typeof permission === "string") {
+    return permission;
+  }
+
+  return permission?.code ?? permission?.slug ?? "";
+};
+
+const normalizePermission = (permission) => {
+  const code = resolvePermissionCode(permission);
+  const name =
+    typeof permission === "string"
+      ? permission
+      : permission?.name ?? code;
+
+  return {
+    ...(typeof permission === "object" && permission ? permission : {}),
+    code,
+    name,
+    group:
+      (typeof permission === "object" && permission?.group) ||
+      code.split(".")[0] ||
+      "general",
+  };
+};
+
 const groupPermissions = (permissions) => {
   const grouped = permissions.reduce((acc, item) => {
     const key = item.group || "general";
@@ -65,17 +91,21 @@ export default function RolesPermissionsPage() {
   const [editingRole, setEditingRole] = useState(null);
   const [form, setForm] = useState(EMPTY_FORM);
 
-  const permissionGroups = useMemo(
-    () => groupPermissions(permissions),
+  const normalizedPermissions = useMemo(
+    () => permissions.map(normalizePermission).filter((item) => item.code),
     [permissions],
+  );
+  const permissionGroups = useMemo(
+    () => groupPermissions(normalizedPermissions),
+    [normalizedPermissions],
   );
   const permissionByCode = useMemo(() => {
     const map = new Map();
-    permissions.forEach((item) => {
+    normalizedPermissions.forEach((item) => {
       map.set(item.code, item);
     });
     return map;
-  }, [permissions]);
+  }, [normalizedPermissions]);
   const selectedPermissions = useMemo(
     () =>
       form.permissionCodes
@@ -129,7 +159,9 @@ export default function RolesPermissionsPage() {
     setForm({
       name: role.name || "",
       description: role.description || "",
-      permissionCodes: (role.permissions || []).map((item) => item.code),
+      permissionCodes: (role.permissions || [])
+        .map(resolvePermissionCode)
+        .filter(Boolean),
     });
     setOpenForm(true);
   };
@@ -303,13 +335,23 @@ export default function RolesPermissionsPage() {
                       flexWrap="wrap"
                       sx={{ mt: 1 }}
                     >
-                      {(role.permissions || []).map((permission) => (
-                        <Chip
-                          key={permission.code}
-                          size="small"
-                          label={permission.name}
-                        />
-                      ))}
+                      {(role.permissions || []).map((permission) => {
+                        const code = resolvePermissionCode(permission);
+                        const meta = permissionByCode.get(code);
+
+                        return (
+                          <Chip
+                            key={code}
+                            size="small"
+                            label={
+                              meta?.name ??
+                              (typeof permission === "object"
+                                ? permission.name
+                                : code)
+                            }
+                          />
+                        );
+                      })}
                     </Stack>
                   ) : null}
                 </Box>

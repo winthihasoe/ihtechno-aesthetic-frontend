@@ -4,6 +4,7 @@ import {
   applyVatToTotals,
   computeTotalsFromLines,
   invoiceAmountDueBeforeNextPayment,
+  normalizePaymentLines,
   resolveEffectiveVatPercent,
   resolvePaymentCollectionAmount,
 } from "../paymentDetailUtils";
@@ -98,6 +99,36 @@ describe("resolvePaymentCollectionAmount", () => {
       totalsGrand: 100000,
     });
     expect(r).toEqual({ ok: true, mode: "full", amount: 40000, amountDue: 40000 });
+  });
+});
+
+describe("normalizePaymentLines", () => {
+  it("keeps labels from {lines} invoices", () => {
+    const lines = normalizePaymentLines({
+      lines: [
+        {
+          type: "treatment",
+          label: "Hydrafacial",
+          qty: 1,
+          unit_price: 20000,
+        },
+      ],
+    });
+    expect(lines).toHaveLength(1);
+    expect(lines[0].label).toBe("Hydrafacial");
+  });
+
+  it("maps legacy {name, price} rows onto labeled lines", () => {
+    const lines = normalizePaymentLines([
+      { name: "Initial Consultation", price: 15000 },
+    ]);
+    expect(lines).toHaveLength(1);
+    expect(lines[0].label).toBe("Initial Consultation");
+    expect(lines[0].unit_price).toBe(15000);
+  });
+
+  it("returns an empty list when items are missing", () => {
+    expect(normalizePaymentLines(undefined)).toEqual([]);
   });
 });
 

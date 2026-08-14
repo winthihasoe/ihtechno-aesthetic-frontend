@@ -35,6 +35,7 @@ import {
   demoGrievances,
   buildHrHeadcount,
 } from "./hrDemo";
+import { buildAccountingQueue } from "./financeDemo";
 
 const now = dayjs();
 export const DEMO_PASSWORD = "password";
@@ -1609,7 +1610,15 @@ export const demoPayments = invoiceSeeds.map(
       status,
       paid_at: isPaid ? createdAt.add(20, "minute").toISOString() : null,
       created_at: createdAt.toISOString(),
-      items: items.map(([name, price]) => ({ name, price })),
+      items: {
+        lines: items.map(([name, price]) => ({
+          type: "other",
+          label: name,
+          qty: 1,
+          unit_price: price,
+          line_total: price,
+        })),
+      },
       transactions: [],
     };
   },
@@ -1954,17 +1963,74 @@ export const demoTransactionMethods = [
   },
 ];
 
-// Field tuple: [label, type, required?, options?]
-//   options = array  → choices for radio/select
+// Field tuple: [label, type, required?, options?, extra?]
+//   options = array  → choices for radio/select/checkbox
 //   type "rich_text" → options string becomes the printed consent/legal text
-const T = (label, type = "text", required = false, options = null) => ({
+const YES_NO = ["Yes", "No"];
+const YES_NO_NA = ["Yes", "No", "Not applicable"];
+const YES_NO_UNSURE = ["Yes", "No", "Not sure"];
+const HEAR_ABOUT_US = [
+  "Walk-in",
+  "Instagram",
+  "Facebook",
+  "Friend / family",
+  "Google",
+  "Hotel / partner",
+  "Other",
+];
+const TREATMENT_INTERESTS = [
+  "Botulinum toxin (Botox)",
+  "Dermal filler",
+  "Skin booster",
+  "Laser facial",
+  "Laser hair removal",
+  "Pigmentation laser",
+  "Chemical peel",
+  "Hydrafacial",
+  "Carbon laser facial",
+  "Body contouring",
+  "IV drip / vitamin infusion",
+  "Consultation only",
+];
+
+const toFieldName = (label) =>
+  String(label)
+    .toLowerCase()
+    .replace(/['’]/g, "")
+    .replace(/[^a-z0-9]+/g, "_")
+    .replace(/^_+|_+$/g, "");
+
+const T = (label, type = "text", required = false, options = null, extra = {}) => ({
   label,
   type,
   required,
   options,
+  name: extra.name || toFieldName(label),
+  section: extra.section || "other",
 });
 
-const consentBlock = (html) => T("Statement", "rich_text", false, html);
+const consentBlock = (html) =>
+  T("Statement", "rich_text", false, html, { name: "statement" });
+
+const consentSignOff = () => [
+  T("Patient acknowledgement", "checkbox", true, [
+    "I have read this form, had the chance to ask questions, and consent to the treatment described.",
+  ], { name: "patient_acknowledgement", section: "consent" }),
+  T("Patient / guardian name", "text", true, null, {
+    name: "consent_name",
+    section: "consent",
+  }),
+  T("Relationship (if guardian)", "text", false, null, {
+    name: "relationship",
+    section: "consent",
+  }),
+  T("Patient signature", "text", true, null, {
+    name: "consent_signature",
+    section: "consent",
+  }),
+  T("Date", "date", true, null, { name: "consent_date", section: "consent" }),
+  T("Clinician name", "text", false, null, { name: "explained_by" }),
+];
 
 // [name, slug, form_type, description, is_active, fields[]]
 const formSeeds = [
@@ -1972,116 +2038,274 @@ const formSeeds = [
     "Patient Registration",
     "patient-registration",
     "intake",
-    "Front-desk registration for new patients.",
+    "Front-desk registration for new aesthetic patients.",
     true,
     [
-      T("Full name", "text", true),
-      T("NRC / National ID", "text"),
-      T("Date of birth", "date", true),
-      T("Gender", "radio", true, ["Male", "Female", "Other"]),
-      T("Primary phone", "text", true),
-      T("Email", "text"),
-      T("Home address", "textarea", true),
-      T("Emergency contact name", "text"),
-      T("Emergency contact phone", "text"),
-      T("How did you hear about us?", "select", false, [
-        "Walk-in",
-        "Instagram",
-        "Friend / family",
-        "Google",
-        "Other",
-      ]),
+      T("Full name", "text", true, null, { name: "full_name", section: "identity" }),
+      T("NRC / National ID", "text", false, null, { name: "nrc", section: "identity" }),
+      T("Date of birth", "date", true, null, {
+        name: "date_of_birth",
+        section: "identity",
+      }),
+      T("Gender", "radio", true, ["Female", "Male", "Other"], {
+        name: "gender",
+        section: "identity",
+      }),
+      T("Primary phone", "phone", true, null, {
+        name: "primary_phone",
+        section: "identity",
+      }),
+      T("Email", "email", false, null, { name: "email", section: "identity" }),
+      T("Home address", "textarea", true, null, {
+        name: "address",
+        section: "identity",
+      }),
+      T("Emergency contact name", "text", false, null, {
+        name: "emergency_contact_name",
+        section: "identity",
+      }),
+      T("Emergency contact phone", "phone", false, null, {
+        name: "emergency_contact_phone",
+        section: "identity",
+      }),
+      T("How did you hear about us?", "select", false, HEAR_ABOUT_US, {
+        name: "how_did_you_hear",
+        section: "discovery",
+      }),
+      T("Referral name", "text", false, null, {
+        name: "referral_name",
+        section: "discovery",
+      }),
     ],
   ],
   [
-    "Aesthetic Health Information",
+    "Aesthetic Medical Questionnaire",
     "aesthetic_health_information_mm",
     "questionnaire",
-    "Treatment interests, skincare, allergies and aesthetic medical history.",
+    "Treatment goals, skincare, allergies and aesthetic medical screening before procedures.",
     true,
     [
-      T("Requested treatment", "textarea", true),
-      T("Treatments of interest", "textarea"),
-      T("Current skincare routine", "textarea"),
-      T("Known drug allergies", "textarea"),
-      T("Lidocaine allergy?", "radio", true, ["Yes", "No", "Not sure"]),
-      T("Recent herpes outbreak?", "radio", false, ["Yes", "No"]),
-      T("Skin conditions", "textarea"),
-      T("Past aesthetic / surgical history", "textarea"),
-      T("Are you pregnant?", "radio", false, ["Yes", "No", "Not applicable"]),
-      T("Currently breastfeeding?", "radio", false, [
-        "Yes",
-        "No",
-        "Not applicable",
-      ]),
+      T("Requested treatment", "textarea", true, null, {
+        name: "requested_treatment",
+        section: "treatment",
+      }),
+      T("Treatments of interest", "checkbox", false, TREATMENT_INTERESTS, {
+        name: "interested_treatment",
+        section: "treatment",
+      }),
+      T("Current skincare routine", "textarea", false, null, {
+        name: "current_skincare",
+        section: "treatment",
+      }),
+      T("Known drug allergies", "textarea", true, null, {
+        name: "allergies",
+        section: "medical",
+      }),
+      T("Lidocaine allergy?", "radio", true, YES_NO_UNSURE, {
+        name: "lidocaine_allergy",
+        section: "medical",
+      }),
+      T("Current medications / supplements", "textarea", false, null, {
+        name: "current_medical_treatment",
+        section: "medical",
+      }),
+      T("Underlying medical conditions", "textarea", false, null, {
+        name: "underlying_conditions",
+        section: "medical",
+      }),
+      T("Oral isotretinoin in the last 6 months?", "radio", true, YES_NO, {
+        name: "isotretinoin_last_6_months",
+        section: "medical",
+      }),
+      T("Blood thinners or aspirin regularly?", "radio", false, YES_NO, {
+        name: "blood_thinners",
+        section: "medical",
+      }),
+      T("Keloid or abnormal scarring?", "radio", false, YES_NO_UNSURE, {
+        name: "keloid_scarring",
+        section: "medical",
+      }),
+      T("Recent herpes / cold-sore outbreak?", "radio", true, YES_NO, {
+        name: "recent_herpes_outbreak",
+        section: "medical",
+      }),
+      T("Skin conditions", "textarea", false, null, {
+        name: "skin_conditions",
+        section: "medical",
+      }),
+      T("Past aesthetic / surgical history", "textarea", false, null, {
+        name: "surgery_history",
+        section: "medical",
+      }),
+      T("Last injectable treatment (date / product)", "text", false, null, {
+        name: "last_injectable",
+        section: "medical",
+      }),
+      T("Are you pregnant or planning pregnancy?", "radio", false, YES_NO_NA, {
+        name: "pregnant",
+        section: "medical",
+      }),
+      T("Currently breastfeeding?", "radio", false, YES_NO_NA, {
+        name: "breastfeeding",
+        section: "medical",
+      }),
+      T("Recent sun exposure, tan or sunburn?", "radio", false, YES_NO, {
+        name: "recent_sun_exposure",
+        section: "medical",
+      }),
     ],
   ],
   [
-    "General Consent for Treatment",
+    "General Health Information",
+    "general_health_information",
+    "questionnaire",
+    "General medical screening for aesthetic consultation and treatment.",
+    true,
+    [
+      T("Full name", "text", true, null, { name: "full_name", section: "identity" }),
+      T("Date of birth", "date", true, null, {
+        name: "date_of_birth",
+        section: "identity",
+      }),
+      T("Occupation", "text", false, null, {
+        name: "occupation",
+        section: "identity",
+      }),
+      T("Weight (kg)", "number", false, null, {
+        name: "weight_kg",
+        section: "identity",
+      }),
+      T("Height (cm)", "number", false, null, {
+        name: "height_cm",
+        section: "identity",
+      }),
+      T("Do you smoke?", "radio", false, YES_NO, {
+        name: "smokes",
+        section: "medical",
+      }),
+      T("Current medications / supplements", "textarea", false, null, {
+        name: "current_medical_treatment",
+        section: "medical",
+      }),
+      T("Allergies", "textarea", true, null, {
+        name: "allergies",
+        section: "medical",
+      }),
+      T("Chronic diseases", "textarea", false, null, {
+        name: "underlying_conditions",
+        section: "medical",
+      }),
+      T("Previous surgery or hospitalisation", "textarea", false, null, {
+        name: "surgery_history",
+        section: "medical",
+      }),
+      T("Pacemaker, implant or metal in the body?", "radio", false, YES_NO, {
+        name: "implants_or_pacemaker",
+        section: "medical",
+      }),
+      T("Autoimmune or neuromuscular condition?", "radio", false, YES_NO_UNSURE, {
+        name: "autoimmune_or_neuromuscular",
+        section: "medical",
+      }),
+      T("Are you pregnant?", "radio", false, YES_NO_NA, {
+        name: "pregnant",
+        section: "medical",
+      }),
+      T("Currently breastfeeding?", "radio", false, YES_NO_NA, {
+        name: "breastfeeding",
+        section: "medical",
+      }),
+    ],
+  ],
+  [
+    "General Consent for Aesthetic Treatment",
     "general-consent",
     "consent",
-    "Standard consent to examination and aesthetic treatment.",
+    "Clinic-wide consent to examination, photography for the chart, and aesthetic treatment.",
     true,
     [
       consentBlock(
-        "<p>I hereby consent to examination and to such aesthetic treatment as the attending doctor or therapist considers appropriate. I confirm that the nature of the proposed treatment, expected results and possible side-effects have been explained to me.</p><p>I understand that no guarantee has been made regarding the outcome of treatment.</p>",
+        "<p>I consent to consultation, examination and such aesthetic treatment as the attending doctor or therapist considers appropriate after discussing my goals, alternatives, likely downtime and cost.</p><p>Aesthetic treatments are elective. Results vary and no outcome is guaranteed. Possible effects include redness, swelling, bruising, pigment change, infection, scarring and the need for further sessions.</p><p>I have disclosed my medical history, allergies, medications (including isotretinoin, blood thinners and supplements), pregnancy or breastfeeding status, and previous aesthetic procedures. I will follow pre- and aftercare advice, including sun protection.</p><p>I may ask questions at any time and may withdraw consent before treatment begins.</p>",
       ),
-      T("Patient / guardian name", "text", true),
-      T("Relationship (if guardian)", "text"),
-      T("Signature", "text", true),
-      T("Date", "date", true),
+      ...consentSignOff(),
     ],
   ],
   [
-    "Botox / Injectable Consent",
+    "Botulinum Toxin Consent",
     "botox-consent",
     "consent",
-    "Informed consent for botulinum toxin and injectable treatments.",
+    "Informed consent for botulinum toxin (Botox / Dysport) treatments.",
     true,
     [
-      T("Treatment area", "text", true),
-      T("Product", "select", true, ["Botox", "Dysport", "Skin booster", "Other"]),
+      T("Treatment area", "text", true, null, { name: "treatment_area" }),
+      T("Product", "select", true, ["Botox", "Dysport", "Other"], {
+        name: "product",
+      }),
+      T("Planned units (if known)", "text", false, null, { name: "planned_units" }),
       consentBlock(
-        "<p>The nature, purpose, benefits, risks and alternatives of injectable treatment have been explained to me, including bruising, swelling, asymmetry and rare complications. I consent to the treatment recorded above.</p>",
+        "<p>Botulinum toxin is injected to temporarily relax selected facial muscles and soften dynamic wrinkles. Onset is usually 3–14 days; effect typically lasts 3–5 months.</p><p>Risks include bruising, headache, asymmetry, drooping eyelid or brow (ptosis), a heavy feeling, flu-like symptoms, and rare spread of toxin effect. Results are not permanent and not guaranteed.</p><p>I should not have treatment if I am pregnant, breastfeeding, have a neuromuscular disorder, or have an active infection at the injection site. I will remain upright for 4 hours and avoid rubbing the area, strenuous exercise and alcohol the same day as advised.</p>",
       ),
-      T("Patient name", "text", true),
-      T("Signature", "text", true),
-      T("Witness name", "text"),
-      T("Date", "date", true),
+      ...consentSignOff(),
     ],
   ],
   [
-    "Photo / Before-After Consent",
-    "photo-consent",
+    "Dermal Filler Consent",
+    "filler-consent",
     "consent",
-    "Consent to clinical photography for the patient chart and optional marketing.",
+    "Informed consent for hyaluronic acid dermal filler, including vascular occlusion risk.",
     true,
     [
-      T("Allow chart photos", "radio", true, ["Yes", "No"]),
-      T("Allow marketing / social use", "radio", true, ["Yes", "No"]),
+      T("Treatment area", "text", true, null, { name: "treatment_area" }),
+      T("Product / range", "text", true, null, { name: "product" }),
       consentBlock(
-        "<p>I consent to photographs being taken for my clinical record. If I also agree to marketing use, images may be used on the clinic website or social media without identifying my name.</p>",
+        "<p>Hyaluronic acid dermal filler is injected to restore volume, soften folds or enhance contours. Results are immediate but settle over 1–2 weeks and typically last 6–18 months depending on product and area.</p><p>Risks include swelling, bruising, lumps, asymmetry, infection, delayed nodules, Tyndall effect, and — rarely — vascular occlusion which can cause tissue damage or, very rarely, vision loss. Hyaluronidase may be used in an emergency.</p><p>I will avoid dental work, vaccinations and long-haul flights around the treatment window as advised, and will contact the clinic immediately for increasing pain, blanching, mottled skin or visual symptoms.</p>",
       ),
-      T("Patient name", "text", true),
-      T("Signature", "text", true),
-      T("Date", "date", true),
+      ...consentSignOff(),
     ],
   ],
   [
-    "Laser Treatment Consent",
+    "Skin Booster Consent",
+    "skin-booster-consent",
+    "consent",
+    "Informed consent for skin-booster and injectable hydration treatments.",
+    true,
+    [
+      T("Treatment area", "text", true, null, { name: "treatment_area" }),
+      T("Product", "text", false, null, { name: "product" }),
+      consentBlock(
+        "<p>Skin boosters are micro-injections of hyaluronic acid or similar products to improve hydration and skin quality. A course of sessions is often recommended.</p><p>Expected effects include pin-point swelling, bruising and tenderness for a few days. Infection, lumps and rare allergic reaction can occur. Results vary and are not guaranteed.</p>",
+      ),
+      ...consentSignOff(),
+    ],
+  ],
+  [
+    "Laser & Light Treatment Consent",
     "laser-consent",
     "consent",
-    "Informed consent for laser facial, hair removal and pigmentation laser.",
+    "Informed consent for laser facial, hair removal, pigmentation laser and IPL.",
     true,
     [
-      T("Laser type / device", "text", true),
-      T("Treatment area", "text", true),
+      T("Laser / device", "text", true, null, { name: "laser_device" }),
+      T("Indication", "select", true, [
+        "Rejuvenation / texture",
+        "Hair reduction",
+        "Pigmentation",
+        "Acne marks",
+        "Other",
+      ], { name: "indication" }),
+      T("Treatment area", "text", true, null, { name: "treatment_area" }),
+      T("Fitzpatrick skin type (if known)", "select", false, [
+        "I",
+        "II",
+        "III",
+        "IV",
+        "V",
+        "VI",
+      ], { name: "fitzpatrick_skin_type" }),
       consentBlock(
-        "<p>Risks including redness, swelling, pigment change, blistering and the need for multiple sessions have been explained. I will follow sun-avoidance and aftercare instructions.</p>",
+        "<p>Laser or intense pulsed light is used for hair reduction, pigmentation, texture or rejuvenation. Multiple sessions are usually required. Response depends on skin type, hair colour and sun exposure.</p><p>Risks include redness, swelling, crusting, blistering, temporary or permanent pigment change, scarring (rare), eye injury if protection is not worn, and paradoxical hair growth (hair removal). Tanned or recently sun-exposed skin increases risk.</p><p>I will use broad-spectrum SPF, avoid sunbeds and self-tan as advised, and disclose tattoos, gold therapy, photosensitising medicines and a history of keloid or herpes in the treatment area.</p>",
       ),
-      T("Patient name", "text", true),
-      T("Signature", "text", true),
-      T("Date", "date", true),
+      ...consentSignOff(),
     ],
   ],
   [
@@ -2091,36 +2315,152 @@ const formSeeds = [
     "Consent and aftercare acknowledgement for chemical peels.",
     true,
     [
-      T("Peel type", "select", true, ["Superficial", "Medium", "Combination"]),
-      T("Treatment area", "text", true),
+      T("Peel type", "select", true, [
+        "Superficial",
+        "Medium",
+        "Combination / cocktail",
+      ], { name: "peel_type" }),
+      T("Treatment area", "text", true, null, { name: "treatment_area" }),
       consentBlock(
-        "<p>Expected peeling, redness and downtime have been explained. I will avoid picking, sun exposure and active skincare until advised.</p>",
+        "<p>A chemical peel uses acids to exfoliate the skin and improve texture, acne marks or pigmentation. Peeling, tightness and redness are expected; downtime depends on peel depth.</p><p>Risks include prolonged redness, pigment change, infection, scarring (rare) and a herpes flare. I will not pick peeling skin, will avoid sun and active skincare (retinoids, AHAs, scrubs) until advised, and will use bland moisturiser and SPF.</p><p>I confirm I am not currently using oral isotretinoin (or have completed the waiting period advised by the doctor) and will disclose any recent procedures in the area.</p>",
       ),
-      T("Patient name", "text", true),
-      T("Signature", "text", true),
-      T("Date", "date", true),
+      ...consentSignOff(),
     ],
   ],
   [
-    "Treatment Aftercare",
-    "aftercare-instructions",
-    "other",
-    "Post-treatment care instructions given to the patient.",
+    "Facial & Hydrafacial Consent",
+    "facial-consent",
+    "consent",
+    "Consent for Hydrafacial, carbon laser facial and clinic facial treatments.",
     true,
     [
-      T("Treatment given", "text", true),
-      T("Aftercare instructions", "textarea", true),
-      T("Products to use", "textarea"),
-      T("Products to avoid", "textarea"),
-      T("Follow-up date", "date"),
-      T("Clinician name", "text"),
+      T("Treatment", "select", true, [
+        "Hydrafacial",
+        "Carbon laser facial",
+        "Vitamin glow facial",
+        "Other facial",
+      ], { name: "treatment" }),
+      T("Treatment area", "text", false, null, { name: "treatment_area" }),
+      consentBlock(
+        "<p>Facial treatments (including Hydrafacial, carbon laser facial and similar) cleanse, exfoliate and hydrate the skin. Mild redness or sensitivity can occur for 24–48 hours.</p><p>I will inform staff of active acne, cold sores, recent sunburn, or allergy to skincare ingredients. Results vary; a course of treatments is often recommended.</p>",
+      ),
+      ...consentSignOff(),
+    ],
+  ],
+  [
+    "IV Therapy Consent",
+    "iv-therapy-consent",
+    "consent",
+    "Informed consent for clinic IV drips and vitamin infusions.",
+    true,
+    [
+      T("Infusion / drip", "text", true, null, { name: "infusion" }),
+      consentBlock(
+        "<p>Intravenous vitamin or hydration infusions are elective wellness treatments. Benefits such as energy or glow are not medically guaranteed.</p><p>Risks include bruising or pain at the cannula site, phlebitis, allergic reaction, dizziness and, rarely, infection or infiltration of fluid into tissue. I confirm I have disclosed allergies, kidney or heart conditions, and current medications.</p>",
+      ),
+      ...consentSignOff(),
+    ],
+  ],
+  [
+    "Clinical Photography Consent",
+    "photo-consent",
+    "consent",
+    "Consent to clinical photography for the patient chart and optional marketing use.",
+    true,
+    [
+      T("Allow chart / medical-record photos", "radio", true, YES_NO, {
+        name: "allow_chart_photos",
+      }),
+      T("Allow marketing / social use (no name)", "radio", true, YES_NO, {
+        name: "allow_marketing_use",
+      }),
+      consentBlock(
+        "<p>Clinical photographs help plan treatment and compare progress. They form part of my confidential medical record.</p><p>Marketing use (website, social media, before/after galleries) is optional and separate. If I agree, images will not include my name. I may withdraw marketing consent later; images already published may not always be retrievable.</p>",
+      ),
+      ...consentSignOff(),
+    ],
+  ],
+  [
+    "Injectable Treatment Record",
+    "injectable-procedure-record",
+    "procedure",
+    "Chairside chart for botulinum toxin, filler and skin-booster sessions.",
+    true,
+    [
+      T("Procedure date", "date", true, null, { name: "procedure_date" }),
+      T("Product", "text", true, null, { name: "product" }),
+      T("Lot / batch number", "text", false, null, { name: "lot_number" }),
+      T("Expiry date", "date", false, null, { name: "expiry_date" }),
+      T("Areas treated and dose / volume", "textarea", true, null, {
+        name: "areas_and_dose",
+      }),
+      T("Total units or ml", "text", false, null, { name: "total_dose" }),
+      T("Needle / cannula", "text", false, null, { name: "needle_or_cannula" }),
+      T("Immediate complications", "textarea", false, null, {
+        name: "complications",
+      }),
+      T("Aftercare explained", "radio", true, YES_NO, {
+        name: "aftercare_explained",
+      }),
+      T("Clinician name", "text", true, null, { name: "explained_by" }),
+    ],
+  ],
+  [
+    "Laser Treatment Record",
+    "laser-procedure-record",
+    "procedure",
+    "Chairside chart for laser and light-based sessions.",
+    true,
+    [
+      T("Procedure date", "date", true, null, { name: "procedure_date" }),
+      T("Device", "text", true, null, { name: "device" }),
+      T("Indication", "text", true, null, { name: "indication" }),
+      T("Treatment area", "text", true, null, { name: "treatment_area" }),
+      T("Settings (fluence, pulse, passes)", "textarea", true, null, {
+        name: "settings",
+      }),
+      T("Eye protection used", "radio", true, YES_NO, {
+        name: "eye_protection_used",
+      }),
+      T("Skin reaction / endpoint", "textarea", false, null, {
+        name: "skin_reaction",
+      }),
+      T("Immediate complications", "textarea", false, null, {
+        name: "complications",
+      }),
+      T("Aftercare explained", "radio", true, YES_NO, {
+        name: "aftercare_explained",
+      }),
+      T("Clinician name", "text", true, null, { name: "explained_by" }),
+    ],
+  ],
+  [
+    "Treatment Aftercare Record",
+    "aftercare-instructions",
+    "other",
+    "Written aftercare given to the patient after an aesthetic procedure.",
+    true,
+    [
+      T("Treatment given", "text", true, null, { name: "treatment_given" }),
+      T("Aftercare instructions", "textarea", true, null, {
+        name: "aftercare_instructions",
+      }),
+      T("Products to use", "textarea", false, null, { name: "products_to_use" }),
+      T("Products to avoid", "textarea", false, null, {
+        name: "products_to_avoid",
+      }),
+      T("Warning signs — contact the clinic if", "textarea", false, null, {
+        name: "warning_signs",
+      }),
+      T("Follow-up date", "date", false, null, { name: "follow_up_date" }),
+      T("Clinician name", "text", false, null, { name: "explained_by" }),
     ],
   ],
   [
     "Patient Feedback Survey",
     "feedback-survey",
     "questionnaire",
-    "Post-visit satisfaction survey.",
+    "Post-visit satisfaction survey for clinic service quality.",
     false,
     [
       T("Overall satisfaction", "radio", false, [
@@ -2128,16 +2468,17 @@ const formSeeds = [
         "Satisfied",
         "Neutral",
         "Dissatisfied",
-      ]),
-      T("Waiting time", "radio", false, ["Short", "Acceptable", "Too long"]),
-      T("Staff courtesy", "radio", false, [
-        "Excellent",
-        "Good",
-        "Fair",
-        "Poor",
-      ]),
-      T("Would you recommend us?", "radio", false, ["Yes", "No", "Maybe"]),
-      T("Comments / suggestions", "textarea"),
+      ], { name: "overall_satisfaction" }),
+      T("Waiting time", "radio", false, ["Short", "Acceptable", "Too long"], {
+        name: "waiting_time",
+      }),
+      T("Staff courtesy", "radio", false, ["Excellent", "Good", "Fair", "Poor"], {
+        name: "staff_courtesy",
+      }),
+      T("Would you recommend us?", "radio", false, ["Yes", "No", "Maybe"], {
+        name: "would_recommend",
+      }),
+      T("Comments / suggestions", "textarea", false, null, { name: "comments" }),
     ],
   ],
 ];
@@ -2149,6 +2490,7 @@ export const demoForms = formSeeds.map(
     id: index + 1,
     name,
     slug,
+    code: slug,
     form_type,
     description,
     fields_count: fieldDefs.length,
@@ -2167,9 +2509,11 @@ formSeeds.forEach(([, , , , , fieldDefs], index) => {
     id: formFieldIdSeq++,
     form_id: formId,
     order: fieldIndex + 1,
+    name: def.name || toFieldName(def.label),
     label: def.label,
     type: def.type,
     required: Boolean(def.required),
+    section: def.section || "other",
     options:
       def.type === "rich_text"
         ? { rich_text: true, default_html: def.options }
@@ -2188,7 +2532,11 @@ export function buildFormDetail(formId) {
     form: {
       ...form,
       responses_count: 0,
-      required_form_links_count: 0,
+      required_form_links_count: demoTreatmentTemplates.filter((t) =>
+        (t.required_form_links ?? []).some(
+          (l) => Number(l.form_definition_id) === Number(form.id),
+        ),
+      ).length,
       draft_version: null,
       published_version: { id: versionId, version_number: 1 },
     },
@@ -2209,7 +2557,46 @@ const AESTHETIC_INTAKE_FORM =
   demoForms.find((f) => f.slug === "aesthetic_health_information_mm") ??
   demoForms[1];
 const GENERAL_HEALTH_FORM =
-  demoForms.find((f) => f.slug === "patient-registration") ?? demoForms[0];
+  demoForms.find((f) => f.slug === "general_health_information") ??
+  demoForms[2];
+
+const formBySlug = (slug) => demoForms.find((f) => f.slug === slug);
+
+const TEMPLATE_REQUIRED_FORMS = {
+  Botox: [["botox-consent", true]],
+  "Dermal Filler": [["filler-consent", true]],
+  "Skin Booster": [["skin-booster-consent", true]],
+  "Laser Facial": [["laser-consent", true]],
+  "Laser Hair Removal": [["laser-consent", true]],
+  "Pigmentation Laser": [["laser-consent", true]],
+  "Chemical Peel": [["peel-consent", true]],
+  Hydrafacial: [["facial-consent", true]],
+  "Carbon Laser Facial": [["facial-consent", true]],
+  "Vitamin Glow Facial": [["facial-consent", true]],
+  "IV Drip": [["iv-therapy-consent", true]],
+};
+
+for (const template of demoTreatmentTemplates) {
+  const links = TEMPLATE_REQUIRED_FORMS[template.name];
+  if (!links) continue;
+  template.required_form_links = links
+    .map(([slug, is_required]) => {
+      const form = formBySlug(slug);
+      if (!form) return null;
+      return {
+        form_definition_id: form.id,
+        is_required,
+        form_definition: {
+          id: form.id,
+          name: form.name,
+          form_type: form.form_type,
+          slug: form.slug,
+          code: form.code,
+        },
+      };
+    })
+    .filter(Boolean);
+}
 
 let formResponseIdSeq = 7000;
 
@@ -2236,8 +2623,10 @@ function buildIntakeDataForPatient(patient, profile) {
     how_did_you_hear: "Friend / family",
     referral_name: "",
     requested_treatment: treatmentNames || patient.notes || "Consultation",
-    interested_treatment: treatmentNames || "Facial rejuvenation",
-    current_skincare: "Gentle cleanser and moisturizer",
+    interested_treatment: treatmentNames
+      ? [treatmentNames]
+      : ["Consultation only"],
+    current_skincare: "Gentle cleanser, moisturiser and daily SPF 50",
     current_medical_treatment: mh.current_medications || "None",
     surgery_history: mh.past_aesthetic_history || "None",
     allergies: mh.allergies || "No known drug allergy",
@@ -2247,15 +2636,22 @@ function buildIntakeDataForPatient(patient, profile) {
       ? "Yes"
       : "No",
     recent_herpes_outbreak: "No",
+    isotretinoin_last_6_months: "No",
+    blood_thinners: "No",
+    keloid_scarring: "No",
+    last_injectable: mh.past_aesthetic_history || "None recorded",
+    recent_sun_exposure: "No",
     underlying_conditions: mh.chronic_diseases || "Nil",
+    skin_conditions: mh.skin_conditions || "",
+    smokes: "No",
+    implants_or_pacemaker: "No",
+    autoimmune_or_neuromuscular: "No",
     consent_date: now.subtract(20, "day").format("YYYY-MM-DD"),
     consent_name: patient.name,
     consent_signature: patient.name,
-    // Aesthetic form field labels (slug-based keys also used in Consultation Room)
-    requested_treatment_textarea: treatmentNames,
-    known_drug_allergies: mh.allergies || "No known drug allergy",
-    skin_conditions: mh.skin_conditions || "",
-    past_aesthetic_surgical_history: mh.past_aesthetic_history || "",
+    patient_acknowledgement: [
+      "I have read this form, had the chance to ask questions, and consent to the treatment described.",
+    ],
   };
 }
 
@@ -2310,17 +2706,17 @@ demoPatients.forEach((patient, index) => {
     form_id: GENERAL_HEALTH_FORM?.id,
     form: {
       id: GENERAL_HEALTH_FORM?.id,
-      name: "General Health Information",
-      code: "general_health_information",
-      slug: "general_health_information",
+      name: GENERAL_HEALTH_FORM?.name,
+      code: GENERAL_HEALTH_FORM?.code ?? "general_health_information",
+      slug: GENERAL_HEALTH_FORM?.slug ?? "general_health_information",
       definition: {
-        name: "General Health Information",
-        code: "general_health_information",
+        name: GENERAL_HEALTH_FORM?.name,
+        code: GENERAL_HEALTH_FORM?.code ?? "general_health_information",
       },
     },
     form_definition: {
-      name: "General Health Information",
-      code: "general_health_information",
+      name: GENERAL_HEALTH_FORM?.name,
+      code: GENERAL_HEALTH_FORM?.code ?? "general_health_information",
     },
     data,
     submitted_by: { id: 4, name: "Nurse Htet Htet" },
@@ -2401,10 +2797,19 @@ export function createDemoStore() {
     otherIncomes: demoOtherIncomes.map((r) => ({ ...r })),
     expenses: demoExpenses.map((r) => ({ ...r })),
     supplierPayables: demoSupplierPayables.map((r) => ({ ...r })),
+    accountingQueue: buildAccountingQueue().map((r) => ({ ...r })),
     nextOtherIncomeId: demoOtherIncomes.length + 1,
     nextExpenseId: demoExpenses.length + 1,
     nextSupplierPayableId: demoSupplierPayables.length + 1,
-    treatmentTemplates: demoTreatmentTemplates.map((t) => ({ ...t })),
+    treatmentTemplates: demoTreatmentTemplates.map((t) => ({
+      ...t,
+      required_form_links: (t.required_form_links ?? []).map((l) => ({
+        ...l,
+        form_definition: l.form_definition
+          ? { ...l.form_definition }
+          : l.form_definition,
+      })),
+    })),
     treatmentCategories: demoTreatmentCategories.map((c) => ({ ...c })),
     packages: demoPackages.map((p) => ({ ...p })),
     nextTemplateId: demoTreatmentTemplates.length + 1,

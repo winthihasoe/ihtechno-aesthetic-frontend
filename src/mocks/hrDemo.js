@@ -31,7 +31,26 @@ const roster = [
   [16, "Daw Aye", "housekeeping1@ihtechno.demo", "worker", "Housekeeping Supervisor", 1, "full_time", "09-500-100-016", 4, 250000, "present"],
 ];
 
-export const demoStaffs = roster.map(
+/** Clinic org chart: CEO → department heads → team members. */
+const REPORTING_LINES = {
+  2: 1, // OPD lead
+  3: 2,
+  4: 2,
+  5: 1, // Nursing lead
+  6: 5,
+  7: 5,
+  8: 5,
+  9: 5,
+  10: 1, // Laboratory lead
+  11: 10,
+  12: 1, // Pharmacy lead
+  13: 12,
+  14: 15, // Administration
+  15: 1,
+  16: 15,
+};
+
+const demoStaffsBase = roster.map(
   ([id, name, email, role, position, deptId, employmentType, phone, yearsAgo, baseSalary]) => {
     const joinedAt = now.subtract(yearsAgo, "year").format("YYYY-MM-DD");
     const department = DEPARTMENTS[deptId];
@@ -50,6 +69,7 @@ export const demoStaffs = roster.map(
         staff_no: `EMP-${String(id).padStart(3, "0")}`,
         position_title: position,
         department,
+        department_id: deptId,
         employment_type: employmentType,
         phone,
         joined_at: joinedAt,
@@ -60,6 +80,23 @@ export const demoStaffs = roster.map(
     };
   },
 );
+
+const staffById = new Map(demoStaffsBase.map((member) => [member.id, member]));
+
+export const demoStaffs = demoStaffsBase.map((member) => {
+  const managerId = REPORTING_LINES[member.id];
+  if (!managerId) return member;
+
+  const manager = staffById.get(managerId);
+  return {
+    ...member,
+    staff_profile: {
+      ...member.staff_profile,
+      reporting_manager_id: managerId,
+      reporting_manager: manager ? { id: manager.id, name: manager.name } : null,
+    },
+  };
+});
 
 const staffRef = (id) => {
   const s = demoStaffs.find((x) => x.id === id);
