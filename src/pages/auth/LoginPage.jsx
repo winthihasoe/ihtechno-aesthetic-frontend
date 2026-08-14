@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import {
   Box,
@@ -33,6 +33,68 @@ import {
   getLoginBackgroundLight,
 } from "../../theme/brandColors";
 
+/** Light theme locks html/body/#root overflow; unlock so the login page can always scroll. */
+function useLoginPageScrollUnlock() {
+  useEffect(() => {
+    const html = document.documentElement;
+    const { body } = document;
+    const root = document.getElementById("root");
+
+    const prev = {
+      htmlOverflow: html.style.getPropertyValue("overflow"),
+      htmlOverflowPriority: html.style.getPropertyPriority("overflow"),
+      htmlHeight: html.style.getPropertyValue("height"),
+      htmlHeightPriority: html.style.getPropertyPriority("height"),
+      bodyOverflow: body.style.getPropertyValue("overflow"),
+      bodyOverflowPriority: body.style.getPropertyPriority("overflow"),
+      bodyHeight: body.style.getPropertyValue("height"),
+      bodyHeightPriority: body.style.getPropertyPriority("height"),
+      rootOverflow: root?.style.getPropertyValue("overflow") ?? "",
+      rootOverflowPriority: root?.style.getPropertyPriority("overflow") ?? "",
+      rootHeight: root?.style.getPropertyValue("height") ?? "",
+      rootHeightPriority: root?.style.getPropertyPriority("height") ?? "",
+      rootMinHeight: root?.style.getPropertyValue("min-height") ?? "",
+      rootMinHeightPriority:
+        root?.style.getPropertyPriority("min-height") ?? "",
+    };
+
+    const unlock = (el, prop, value) => {
+      el.style.setProperty(prop, value, "important");
+    };
+
+    unlock(html, "overflow", "auto");
+    unlock(html, "height", "auto");
+    unlock(body, "overflow", "auto");
+    unlock(body, "height", "auto");
+    if (root) {
+      unlock(root, "overflow", "visible");
+      unlock(root, "height", "auto");
+      unlock(root, "min-height", "100%");
+    }
+
+    const restore = (el, prop, value, priority) => {
+      if (!el) return;
+      if (value) el.style.setProperty(prop, value, priority || undefined);
+      else el.style.removeProperty(prop);
+    };
+
+    return () => {
+      restore(html, "overflow", prev.htmlOverflow, prev.htmlOverflowPriority);
+      restore(html, "height", prev.htmlHeight, prev.htmlHeightPriority);
+      restore(body, "overflow", prev.bodyOverflow, prev.bodyOverflowPriority);
+      restore(body, "height", prev.bodyHeight, prev.bodyHeightPriority);
+      restore(root, "overflow", prev.rootOverflow, prev.rootOverflowPriority);
+      restore(root, "height", prev.rootHeight, prev.rootHeightPriority);
+      restore(
+        root,
+        "min-height",
+        prev.rootMinHeight,
+        prev.rootMinHeightPriority,
+      );
+    };
+  }, []);
+}
+
 function DemoAccountPanel({ accounts, onSelect, compact = false }) {
   const theme = useTheme();
   const isDark = theme.palette.mode === "dark";
@@ -42,7 +104,7 @@ function DemoAccountPanel({ accounts, onSelect, compact = false }) {
   return (
     <Box
       sx={{
-        height: "100%",
+        height: { xs: "auto", md: "100%" },
         display: "flex",
         flexDirection: "column",
         p: { xs: 2.5, md: 3.5 },
@@ -71,7 +133,9 @@ function DemoAccountPanel({ accounts, onSelect, compact = false }) {
             fontFamily: "monospace",
             fontWeight: 600,
             color: "text.primary",
-            bgcolor: isDark ? alpha(theme.palette.common.white, 0.06) : alpha(BRAND_COLORS.primary, 0.08),
+            bgcolor: isDark
+              ? alpha(theme.palette.common.white, 0.06)
+              : alpha(BRAND_COLORS.primary, 0.08),
             px: 0.75,
             py: 0.15,
             borderRadius: 0.75,
@@ -143,11 +207,21 @@ function DemoAccountPanel({ accounts, onSelect, compact = false }) {
               <Typography variant="body2" fontWeight={600} noWrap>
                 {account.name}
               </Typography>
-              <Typography variant="caption" color="text.secondary" noWrap display="block">
+              <Typography
+                variant="caption"
+                color="text.secondary"
+                noWrap
+                display="block"
+              >
                 {account.email}
               </Typography>
             </Box>
-            <Stack direction="row" alignItems="center" spacing={0.5} sx={{ flexShrink: 0 }}>
+            <Stack
+              direction="row"
+              alignItems="center"
+              spacing={0.5}
+              sx={{ flexShrink: 0 }}
+            >
               <Chip
                 label={account.role}
                 size="small"
@@ -161,7 +235,11 @@ function DemoAccountPanel({ accounts, onSelect, compact = false }) {
                 }}
               />
               <ArrowForwardIcon
-                sx={{ fontSize: 16, color: "text.disabled", display: { xs: "none", sm: "block" } }}
+                sx={{
+                  fontSize: 16,
+                  color: "text.disabled",
+                  display: { xs: "none", sm: "block" },
+                }}
               />
             </Stack>
           </Box>
@@ -180,6 +258,8 @@ export default function LoginPage() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [showPw, setShowPw] = useState(false);
+
+  useLoginPageScrollUnlock();
 
   const isLight = theme.palette.mode === "light";
   const isDark = !isLight;
@@ -234,7 +314,6 @@ export default function LoginPage() {
         display: "flex",
         flexDirection: "column",
         justifyContent: "center",
-        height: "100%",
       }}
     >
       {/* Brand */}
@@ -387,17 +466,29 @@ export default function LoginPage() {
       {hasContact && !showDemo ? (
         <Box sx={{ mt: 3, pt: 2.5, borderTop: 1, borderColor: "divider" }}>
           {clinicAddress ? (
-            <Typography variant="caption" color="text.secondary" display="block">
+            <Typography
+              variant="caption"
+              color="text.secondary"
+              display="block"
+            >
               {clinicAddress}
             </Typography>
           ) : null}
           {clinicPhones.length > 0 ? (
-            <Typography variant="caption" color="text.secondary" display="block">
+            <Typography
+              variant="caption"
+              color="text.secondary"
+              display="block"
+            >
               {clinicPhones.join(" · ")}
             </Typography>
           ) : null}
           {clinicEmails.length > 0 ? (
-            <Typography variant="caption" color="text.secondary" display="block">
+            <Typography
+              variant="caption"
+              color="text.secondary"
+              display="block"
+            >
               {clinicEmails.join(" · ")}
             </Typography>
           ) : null}
@@ -423,18 +514,23 @@ export default function LoginPage() {
 
   return (
     <Box
+      component="main"
       sx={{
-        minHeight: "100dvh",
+        position: "fixed",
+        inset: 0,
+        zIndex: 2,
         display: "flex",
         flexDirection: "column",
+        overflowX: "hidden",
         overflowY: "auto",
-        overscrollBehavior: "contain",
+        overscrollBehaviorY: "contain",
         WebkitOverflowScrolling: "touch",
+        touchAction: "pan-y",
         ...(isLight
           ? {
               bgcolor: "#eef0ec",
               backgroundImage: getLoginBackgroundLight(),
-              backgroundAttachment: "scroll",
+              backgroundAttachment: "local",
               backgroundSize: "cover",
             }
           : {
@@ -442,7 +538,6 @@ export default function LoginPage() {
             }),
       }}
     >
-      {/* Top accent bar */}
       <Box
         sx={{
           height: 4,
@@ -453,12 +548,16 @@ export default function LoginPage() {
 
       <Box
         sx={{
-          flex: 1,
+          flex: "1 0 auto",
           display: "flex",
-          alignItems: { xs: "flex-start", md: "center" },
+          alignItems: "flex-start",
           justifyContent: "center",
           px: { xs: 2, sm: 3 },
-          py: { xs: 3, md: 4 },
+          py: { xs: 2, sm: 3, md: 4 },
+          pb: {
+            xs: "calc(24px + env(safe-area-inset-bottom, 0px))",
+            md: 4,
+          },
         }}
       >
         <Box
@@ -478,12 +577,11 @@ export default function LoginPage() {
           }}
         >
           {showDemo && isDesktop ? (
-            /* Desktop: side-by-side */
             <Box
               sx={{
                 display: "grid",
                 gridTemplateColumns: "1fr 1fr",
-                minHeight: 520,
+                alignItems: "stretch",
               }}
             >
               <Box
@@ -508,7 +606,6 @@ export default function LoginPage() {
               </Box>
             </Box>
           ) : (
-            /* Mobile / no demo: stacked, scrollable */
             <Box>
               {loginPanel}
               {showDemo ? (
@@ -533,17 +630,30 @@ export default function LoginPage() {
         </Box>
       </Box>
 
-      {/* Footer */}
       <Box
         sx={{
           flexShrink: 0,
           textAlign: "center",
-          pb: 2.5,
+          pb: {
+            xs: "calc(16px + env(safe-area-inset-bottom, 0px))",
+            md: 2.5,
+          },
           px: 2,
         }}
       >
-        <Typography variant="caption" color="text.disabled">
+        <Typography variant="body2" color="text.disabled">
           {clinicTitle} · Secure clinic management
+        </Typography>
+        <Typography variant="caption" color="text.disabled">
+          Powered by{" "}
+          <a
+            href="https://ihtechno.com"
+            target="_blank"
+            rel="noopener noreferrer"
+            style={{ color: "inherit", textDecoration: "underline" }}
+          >
+            Ihtechno
+          </a>
         </Typography>
       </Box>
     </Box>
