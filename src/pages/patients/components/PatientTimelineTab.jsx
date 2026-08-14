@@ -78,7 +78,7 @@ export default function PatientTimelineTab({ patientId }) {
                 {item.title}
               </Typography>
               <Typography variant="caption" color="text.secondary">
-                {dayjs(item.event_at).format("YYYY-MM-DD HH:mm")} · {item.type.replace(/_/g, " ")}
+                {dayjs(item.event_at).format("DD-MM-YYYY hh:mm")} · {item.type.replace(/_/g, " ")}
               </Typography>
             </Box>
           ))}

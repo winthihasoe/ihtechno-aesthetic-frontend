@@ -407,6 +407,10 @@ function buildVisit(seed) {
           id: seed.id,
           amount: seed.paymentAmount,
           status: seed.status === "completed" ? "paid" : "unpaid",
+          paid_at:
+            seed.status === "completed"
+              ? dayBase.subtract((seed.minutesAgo ?? 60) - 15, "minute").toISOString()
+              : null,
         }
       : null,
     paymentAmount: seed.paymentAmount ?? 0,
@@ -578,6 +582,8 @@ const clinicalProfiles = {
     ],
     treatments: [{ name: "Laser Facial", area: "Cheeks" }],
     followUp: { purpose: "review", note: "Pigmentation review at 4 weeks" },
+    notes:
+      "Patient prefers morning slots. Remind to pause hydroquinone 5 days before next laser.",
   },
   2: {
     chief_complaint:
@@ -613,6 +619,41 @@ const clinicalProfiles = {
     ],
     treatments: [{ name: "IV Drip", area: "Systemic" }],
     followUp: { purpose: "review", note: "Glow check in 4 weeks" },
+    notes: "Sulfa allergy — avoid related meds. First IV drip; monitor for 20 minutes post-infusion.",
+  },
+  3: {
+    chief_complaint: "Acne scarring on cheeks; wants smoother texture.",
+    examination_note:
+      "Ice-pick and rolling scars on both cheeks. Mild active comedones on T-zone. Fitzpatrick IV.",
+    diagnosis_primary: "Acne scarring — peel candidate",
+    diagnosis_secondary: ["Mild comedonal acne"],
+    assessment: "Good peel candidate once active acne settles. Start gentle prep.",
+    treatment_plan:
+      "Chemical peel consult today. Benzoyl peroxide pause 3 days pre-peel. Book first peel in 2 weeks.",
+    vitals: { bp: "120/78", pulse: "76", temp: "36.6", spo2: "99" },
+    medical_history: {
+      allergies: "No known drug allergy",
+      current_medications: "Topical adapalene (nightly)",
+      chronic_diseases: "Nil",
+      skin_conditions: "Acne scarring, mild comedonal acne",
+      past_aesthetic_history: "None",
+    },
+    prescription: [
+      {
+        medicine_name: "Gentle cleanser",
+        strength: "",
+        dosage_form: "gel",
+        route: "Topical",
+        frequency: "Twice daily",
+        duration: "30 days",
+        quantity: "1",
+        unit: "bottle",
+        special_instructions: "Stop actives 3 days before peel",
+      },
+    ],
+    treatments: [{ name: "Chemical Peel", area: "Cheeks" }],
+    followUp: { purpose: "next_session", note: "First peel in 2 weeks" },
+    notes: "Teen patient — parent consent on file. Prefers Friday afternoon.",
   },
   4: {
     chief_complaint:
@@ -647,6 +688,7 @@ const clinicalProfiles = {
     ],
     treatments: [{ name: "Hydrafacial", area: "Full face" }],
     followUp: { purpose: "next_session", note: "Laser facial in 3 weeks" },
+    notes: "Bridal timeline: wedding in 8 weeks. Avoid new actives within 10 days of the event.",
   },
   5: {
     chief_complaint: "Sun spots on cheeks and forehead; wants clearer skin.",
@@ -680,6 +722,74 @@ const clinicalProfiles = {
     ],
     treatments: [{ name: "Laser Facial", area: "Full face" }],
     followUp: { purpose: "review", note: "Pigment fade review" },
+    notes: "Works outdoors — stress SPF and hat. Mild photosensitivity after laser expected.",
+  },
+  6: {
+    chief_complaint: "Dry, thin skin; archived follow-up before transfer.",
+    examination_note:
+      "Thin, dry facial skin. No active lesions. Records prepared for transfer.",
+    diagnosis_primary: "Xerosis / age-related thinning",
+    diagnosis_secondary: [],
+    assessment: "Supportive skincare only. Patient relocating; chart closed after today.",
+    treatment_plan: "Hydrating facial completed. Discharge summary given for new clinic.",
+    vitals: { bp: "138/84", pulse: "68", temp: "36.5", spo2: "97" },
+    medical_history: {
+      allergies: "Aspirin — stomach upset",
+      current_medications: "Calcium supplement",
+      chronic_diseases: "Osteopenia",
+      skin_conditions: "Xerosis",
+      past_aesthetic_history: "Hydrating facials quarterly",
+    },
+    prescription: [
+      {
+        medicine_name: "Ceramide cream",
+        strength: "",
+        dosage_form: "cream",
+        route: "Topical",
+        frequency: "Twice daily",
+        duration: "30 days",
+        quantity: "1",
+        unit: "jar",
+        special_instructions: "Apply to face and neck after washing",
+      },
+    ],
+    treatments: [{ name: "Hydrafacial", area: "Full face" }],
+    followUp: { purpose: "review", note: "Transferred — no local follow-up" },
+    notes: "Moved clinics — keep records archived. Aspirin sensitivity noted.",
+  },
+  7: {
+    chief_complaint: "Underarm hair; requesting laser hair removal.",
+    examination_note:
+      "Dense underarm hair. Skin intact, no folliculitis today. Fitzpatrick IV.",
+    diagnosis_primary: "Unwanted axillary hair — LHR candidate",
+    diagnosis_secondary: [],
+    assessment: "Suitable for laser hair removal. Patch test discussed.",
+    treatment_plan:
+      "Laser hair removal underarms. Shave night before. Avoid deodorant 24h after.",
+    vitals: { bp: "124/80", pulse: "72", temp: "36.6", spo2: "98" },
+    medical_history: {
+      allergies: "No known drug allergy",
+      current_medications: "None",
+      chronic_diseases: "Nil",
+      skin_conditions: "Nil significant",
+      past_aesthetic_history: "None",
+    },
+    prescription: [
+      {
+        medicine_name: "Aloe gel",
+        strength: "",
+        dosage_form: "gel",
+        route: "Topical",
+        frequency: "As needed",
+        duration: "7 days",
+        quantity: "1",
+        unit: "tube",
+        special_instructions: "Cool underarms if warm after laser",
+      },
+    ],
+    treatments: [{ name: "Laser Hair Removal", area: "Underarms" }],
+    followUp: { purpose: "next_session", note: "LHR session 2 in 6 weeks" },
+    notes: "Prefers male therapist for underarm sessions. Patch test clear.",
   },
   8: {
     chief_complaint: "Acne scarring on cheeks; peeling redness on day 5.",
@@ -716,6 +826,7 @@ const clinicalProfiles = {
       purpose: "review",
       note: "Next peel if erythema settled",
     },
+    notes: "Day-5 peel aftercare. No actives until erythema clears. Next peel in ~4 weeks.",
   },
   9: {
     chief_complaint:
@@ -750,6 +861,41 @@ const clinicalProfiles = {
     ],
     treatments: [{ name: "Botox", area: "Forehead / crow's feet" }],
     followUp: { purpose: "review", note: "2-week Botox review" },
+    notes: "Lidocaine allergy — use plain toxin only. Last Botox ~5 months ago.",
+  },
+  10: {
+    chief_complaint: "Fine lines and loss of glow; anti-aging package interest.",
+    examination_note:
+      "Early fine lines periocular. Mild dullness. Good candidate for staged anti-aging plan.",
+    diagnosis_primary: "Early photoaging — anti-aging package",
+    diagnosis_secondary: [],
+    assessment: "Start with hydrafacial and SPF; consider light peel next visit.",
+    treatment_plan:
+      "Hydrafacial today. Enrol anti-aging package. Review texture in 4 weeks.",
+    vitals: { bp: "116/72", pulse: "74", temp: "36.6", spo2: "99" },
+    medical_history: {
+      allergies: "No known drug allergy",
+      current_medications: "None",
+      chronic_diseases: "Nil",
+      skin_conditions: "Early fine lines, dullness",
+      past_aesthetic_history: "Occasional facials",
+    },
+    prescription: [
+      {
+        medicine_name: "Retinol cream 0.3%",
+        strength: "0.3%",
+        dosage_form: "cream",
+        route: "Topical",
+        frequency: "Nightly (start every other night)",
+        duration: "30 days",
+        quantity: "1",
+        unit: "tube",
+        special_instructions: "Use SPF daily; stop if irritation",
+      },
+    ],
+    treatments: [{ name: "Hydrafacial", area: "Full face" }],
+    followUp: { purpose: "next_session", note: "Peel or laser per package plan" },
+    notes: "Package deposit paid. Prefers evening appointments after work.",
   },
   11: {
     chief_complaint: "Brown birthmark on the cheek; parent present for mapping.",
@@ -783,6 +929,7 @@ const clinicalProfiles = {
     ],
     treatments: [{ name: "Initial Consultation", area: "Left cheek" }],
     followUp: { purpose: "review", note: "Photo compare in 6 months" },
+    notes: "Parent present for counselling. Observe café-au-lait; optional laser later.",
   },
   12: {
     chief_complaint: "Nasolabial folds; interested in hyaluronic acid filler.",
@@ -816,6 +963,7 @@ const clinicalProfiles = {
     ],
     treatments: [{ name: "Dermal Filler", area: "Nasolabial folds" }],
     followUp: { purpose: "review", note: "Filler review at 2 weeks" },
+    notes: "No herpes history. Avoid dental work 2 weeks either side of filler.",
   },
 };
 
@@ -873,7 +1021,7 @@ function buildConsultationForVisit(visit) {
     prescribed_treatment: (profile.treatments ?? [])
       .map((t) => t.name)
       .join(", "),
-    notes: "",
+    notes: profile.notes ?? "",
     // Structured fields (Consultation Room editor)
     diagnosis_structured: {
       primary: profile.diagnosis_primary,
@@ -963,6 +1111,82 @@ demoVisits.forEach((visit) => {
   visit.photos = [];
 });
 
+/**
+ * Guarantee every patient has prior completed visits with consultation + treatments
+ * so Consultation Room "Past consults / Treatments / Notes" are never empty in demo.
+ */
+function attachClinicalBundle(visit) {
+  visit.visit_time = visit.visited_at;
+  const consultation = buildConsultationForVisit(visit);
+  if (!consultation) {
+    visit.consultations = [];
+    visit.consultation = null;
+    visit.prescriptions = [];
+    visit.treatments = [];
+    visit.photos = [];
+    return visit;
+  }
+  const treatments = buildTreatmentsForConsultation(consultation);
+  const prescriptions = consultation.prescriptionRecord
+    ? [consultation.prescriptionRecord]
+    : [];
+  demoConsultationsByVisit[visit.id] = consultation;
+  demoPrescriptionsByVisit[visit.id] = prescriptions;
+  demoTreatmentsByVisit[visit.id] = treatments;
+  visit.consultation = consultation;
+  visit.consultations = [consultation];
+  visit.prescriptions = prescriptions;
+  visit.treatments = treatments;
+  visit.photos = [];
+  return visit;
+}
+
+function countCompletedConsultedVisits(patientId) {
+  return demoVisits.filter(
+    (v) =>
+      Number(v.patient_id) === Number(patientId) &&
+      v.status === "completed" &&
+      v.consultation,
+  ).length;
+}
+
+let historyVisitIdSeq = Math.max(0, ...demoVisits.map((v) => Number(v.id) || 0)) + 1;
+
+demoPatients.forEach((patient, patientIndex) => {
+  const needed = 2;
+  let have = countCompletedConsultedVisits(patient.id);
+  let historySlot = 0;
+  while (have < needed) {
+    historySlot += 1;
+    const dayOffset = 14 + patientIndex * 2 + historySlot * 10;
+    const doctor = patientIndex % 2 === 0 ? doctor1 : doctor2;
+    const nurse = patientIndex % 2 === 0 ? nurse1 : nurse2;
+    const seed = {
+      id: historyVisitIdSeq++,
+      patientId: patient.id,
+      dayOffset,
+      status: "completed",
+      minutesAgo: 180 + historySlot * 40,
+      queue: String(100 + patient.id * 2 + historySlot).padStart(3, "0"),
+      doctor,
+      nurse,
+      paymentAmount: 25000 + patient.id * 1000 + historySlot * 1500,
+    };
+    const visit = attachClinicalBundle(buildVisit(seed));
+    demoVisits.push(visit);
+    have += 1;
+  }
+});
+
+// Current-day consulting/preparation/etc. visits already attached above; ensure
+// any remaining without clinical still have empty arrays for safe UI reads.
+demoVisits.forEach((visit) => {
+  if (!Array.isArray(visit.consultations)) visit.consultations = [];
+  if (!Array.isArray(visit.treatments)) visit.treatments = [];
+  if (!Array.isArray(visit.prescriptions)) visit.prescriptions = [];
+  if (!visit.visit_time) visit.visit_time = visit.visited_at;
+});
+
 /** Medical & aesthetic history record per patient (Medical History tab). */
 export const demoMedicalHistoriesByPatient = {};
 Object.entries(clinicalProfiles).forEach(([patientId, profile]) => {
@@ -977,6 +1201,9 @@ Object.entries(clinicalProfiles).forEach(([patientId, profile]) => {
     breastfeeding_status: false,
     skin_conditions: mh.skin_conditions ?? "",
     past_aesthetic_history: mh.past_aesthetic_history ?? "",
+    past_surgical_history: mh.past_surgical_history ?? mh.past_aesthetic_history ?? "",
+    family_history: mh.family_history ?? "",
+    hospitalizations: mh.hospitalizations ?? "",
   };
 });
 
@@ -1978,6 +2205,178 @@ export function buildFormDetail(formId) {
   };
 }
 
+const AESTHETIC_INTAKE_FORM =
+  demoForms.find((f) => f.slug === "aesthetic_health_information_mm") ??
+  demoForms[1];
+const GENERAL_HEALTH_FORM =
+  demoForms.find((f) => f.slug === "patient-registration") ?? demoForms[0];
+
+let formResponseIdSeq = 7000;
+
+function buildIntakeDataForPatient(patient, profile) {
+  const mh = profile?.medical_history ?? {};
+  const treatmentNames = (profile?.treatments ?? []).map((t) => t.name).join(", ");
+  return {
+    full_name: patient.name,
+    gender: patient.gender,
+    date_of_birth: patient.dob,
+    age: String(Math.max(1, now.diff(dayjs(patient.dob), "year"))),
+    occupation: patient.gender === "female" ? "Professional" : "Business owner",
+    marital_status: "Married",
+    pregnant: "No",
+    breastfeeding: "No",
+    weight_kg: patient.gender === "female" ? "54" : "68",
+    height_cm: patient.gender === "female" ? "158" : "170",
+    primary_phone: patient.phone,
+    viber_phone: patient.phone,
+    emergency_contact_phone: "09-421-000-999",
+    relationship: "Spouse",
+    email: patient.email,
+    address: patient.address,
+    how_did_you_hear: "Friend / family",
+    referral_name: "",
+    requested_treatment: treatmentNames || patient.notes || "Consultation",
+    interested_treatment: treatmentNames || "Facial rejuvenation",
+    current_skincare: "Gentle cleanser and moisturizer",
+    current_medical_treatment: mh.current_medications || "None",
+    surgery_history: mh.past_aesthetic_history || "None",
+    allergies: mh.allergies || "No known drug allergy",
+    lidocaine_allergy: String(mh.allergies || "")
+      .toLowerCase()
+      .includes("lidocaine")
+      ? "Yes"
+      : "No",
+    recent_herpes_outbreak: "No",
+    underlying_conditions: mh.chronic_diseases || "Nil",
+    consent_date: now.subtract(20, "day").format("YYYY-MM-DD"),
+    consent_name: patient.name,
+    consent_signature: patient.name,
+    // Aesthetic form field labels (slug-based keys also used in Consultation Room)
+    requested_treatment_textarea: treatmentNames,
+    known_drug_allergies: mh.allergies || "No known drug allergy",
+    skin_conditions: mh.skin_conditions || "",
+    past_aesthetic_surgical_history: mh.past_aesthetic_history || "",
+  };
+}
+
+/** Intake / questionnaire responses attached to every patient chart. */
+export const demoFormResponsesByPatient = {};
+demoPatients.forEach((patient, index) => {
+  const profile = clinicalProfiles[patient.id];
+  const visit =
+    demoVisits.find(
+      (v) =>
+        Number(v.patient_id) === Number(patient.id) && v.status === "completed",
+    ) ?? demoVisits.find((v) => Number(v.patient_id) === Number(patient.id));
+  const submittedAt = now.subtract(18 + index, "day").toISOString();
+  const data = buildIntakeDataForPatient(patient, profile);
+  const aestheticResponse = {
+    id: formResponseIdSeq++,
+    patient_id: patient.id,
+    visit_id: visit?.id ?? null,
+    visit: visit
+      ? {
+          id: visit.id,
+          queue_number: visit.queue_number,
+          visit_time: visit.visited_at,
+          status: visit.status,
+        }
+      : null,
+    form_id: AESTHETIC_INTAKE_FORM?.id,
+    form: {
+      id: AESTHETIC_INTAKE_FORM?.id,
+      name: AESTHETIC_INTAKE_FORM?.name,
+      code: "aesthetic_health_information_mm",
+      slug: AESTHETIC_INTAKE_FORM?.slug,
+      definition: {
+        name: AESTHETIC_INTAKE_FORM?.name,
+        code: "aesthetic_health_information_mm",
+      },
+    },
+    form_definition: {
+      name: AESTHETIC_INTAKE_FORM?.name,
+      code: "aesthetic_health_information_mm",
+    },
+    data,
+    submitted_by: { id: 4, name: "Nurse Htet Htet" },
+    created_at: submittedAt,
+    updated_at: submittedAt,
+  };
+  const generalResponse = {
+    id: formResponseIdSeq++,
+    patient_id: patient.id,
+    visit_id: visit?.id ?? null,
+    visit: aestheticResponse.visit,
+    form_id: GENERAL_HEALTH_FORM?.id,
+    form: {
+      id: GENERAL_HEALTH_FORM?.id,
+      name: "General Health Information",
+      code: "general_health_information",
+      slug: "general_health_information",
+      definition: {
+        name: "General Health Information",
+        code: "general_health_information",
+      },
+    },
+    form_definition: {
+      name: "General Health Information",
+      code: "general_health_information",
+    },
+    data,
+    submitted_by: { id: 4, name: "Nurse Htet Htet" },
+    created_at: submittedAt,
+    updated_at: submittedAt,
+  };
+  demoFormResponsesByPatient[patient.id] = [aestheticResponse, generalResponse];
+});
+
+/** Purchased package rows for patient Packages tab. */
+export const demoPatientPackagesByPatient = {};
+demoPatients.forEach((patient, index) => {
+  const catalog = demoPackages[index % demoPackages.length];
+  if (!catalog) {
+    demoPatientPackagesByPatient[patient.id] = [];
+    return;
+  }
+  const purchasedAt = now.subtract(30 + index * 3, "day");
+  const totalSessions = (catalog.items ?? []).reduce(
+    (sum, it) => sum + (it.total_sessions ?? 0),
+    0,
+  );
+  const usedSessions = Math.min(totalSessions, 1 + (index % 3));
+  demoPatientPackagesByPatient[patient.id] = [
+    {
+      id: 8000 + patient.id,
+      patient_id: patient.id,
+      package_id: catalog.id,
+      package: {
+        id: catalog.id,
+        name: catalog.name,
+        price: catalog.price,
+        validity_days: catalog.validity_days,
+      },
+      name: catalog.name,
+      status: patient.status === "inactive" ? "expired" : "active",
+      purchased_at: purchasedAt.toISOString(),
+      expires_at: purchasedAt
+        .add(catalog.validity_days ?? 90, "day")
+        .toISOString(),
+      total_sessions: totalSessions,
+      used_sessions: usedSessions,
+      remaining_sessions: Math.max(0, totalSessions - usedSessions),
+      items: (catalog.items ?? []).map((it, itemIndex) => ({
+        id: 8100 + patient.id * 10 + itemIndex,
+        treatment_template_id: it.treatment_template_id,
+        treatment_template: it.treatment_template,
+        total_sessions: it.total_sessions,
+        used_sessions: itemIndex === 0 ? Math.min(1, it.total_sessions) : 0,
+        remaining_sessions:
+          it.total_sessions - (itemIndex === 0 ? Math.min(1, it.total_sessions) : 0),
+      })),
+    },
+  ];
+});
+
 /** Mutable in-memory store — survives for the browser session. */
 export function createDemoStore() {
   return {
@@ -2022,6 +2421,26 @@ export function createDemoStore() {
         { ...v },
       ]),
     ),
+    formResponsesByPatient: Object.fromEntries(
+      Object.entries(demoFormResponsesByPatient).map(([k, rows]) => [
+        k,
+        rows.map((r) => ({
+          ...r,
+          data: { ...(r.data ?? {}) },
+          form: r.form ? { ...r.form } : r.form,
+        })),
+      ]),
+    ),
+    patientPackagesByPatient: Object.fromEntries(
+      Object.entries(demoPatientPackagesByPatient).map(([k, rows]) => [
+        k,
+        rows.map((r) => ({
+          ...r,
+          package: r.package ? { ...r.package } : r.package,
+          items: (r.items ?? []).map((it) => ({ ...it })),
+        })),
+      ]),
+    ),
     leaves: demoLeaves.map((l) => ({ ...l })),
     attendance: demoAttendance.map((a) => ({ ...a })),
     overtimes: demoOvertimes.map((o) => ({ ...o })),
@@ -2034,6 +2453,7 @@ export function createDemoStore() {
     nextVisitId: demoVisits.length + 1,
     nextAppointmentId: demoAppointments.length + 1,
     nextPaymentId: demoPayments.length + 1,
+    nextPhotoId: 90001,
   };
 }
 

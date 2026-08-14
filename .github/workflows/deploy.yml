@@ -17,6 +17,6 @@ jobs:
           key: ${{ secrets.SERVER_SSH_KEY }}
           port: ${{ secrets.SERVER_PORT }}
           script: |
-            cd /var/www/ihtechno-erp-frontend
+            cd /var/www/ihtechno-aesthetic-frontend
             git fetch origin main
             git reset --hard origin/main

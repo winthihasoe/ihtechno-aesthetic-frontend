@@ -52,12 +52,17 @@ import PatientIntakeFormsTab from "./components/PatientIntakeFormsTab";
 import PatientInfoTab from "./components/PatientInfoTab";
 import PatientMedicalHistoryTab from "./components/PatientMedicalHistoryTab";
 import PatientNotesTab from "./components/PatientNotesTab";
+import PatientPackagesTab from "./components/PatientPackagesTab";
 import PatientPaymentHistoryTab from "./components/PatientPaymentHistoryTab";
 import PatientTabPanel from "./components/PatientTabPanel";
 import PatientTimelineTab from "./components/PatientTimelineTab";
+import PatientTreatmentHistoryTab from "./components/PatientTreatmentHistoryTab";
 import PatientVisitsTab from "./components/PatientVisitsTab";
 
-const GENERAL_HEALTH_FORM_CODE = "general_health_information";
+const QUESTIONNAIRE_FORM_CODES = new Set([
+  "general_health_information",
+  "aesthetic_health_information_mm",
+]);
 
 function isClinicalMedicalHistoryEmpty(mh) {
   if (mh == null || typeof mh !== "object") return true;
@@ -144,8 +149,13 @@ export default function PatientDetailPage() {
       return directResponse;
     }
 
-    const matchingResponses = formResponses.filter(
-      (response) => response.form?.code === GENERAL_HEALTH_FORM_CODE,
+    const matchingResponses = formResponses.filter((response) =>
+      QUESTIONNAIRE_FORM_CODES.has(
+        response.form?.code ??
+          response.form?.definition?.code ??
+          response.form_definition?.code ??
+          "",
+      ),
     );
 
     return matchingResponses.sort((a, b) =>
@@ -379,12 +389,20 @@ export default function PatientDetailPage() {
       content: <PatientConsultationTab visits={patient.visits} />,
     },
     {
+      label: "Treatment History",
+      content: <PatientTreatmentHistoryTab visits={patient.visits} />,
+    },
+    {
       label: "Timeline",
       content: <PatientTimelineTab patientId={patient.id} />,
     },
     {
       label: "Intake Forms",
       content: <PatientIntakeFormsTab formResponses={formResponses} />,
+    },
+    {
+      label: "Packages",
+      content: <PatientPackagesTab patientId={patient.id} />,
     },
     {
       label: "Notes",

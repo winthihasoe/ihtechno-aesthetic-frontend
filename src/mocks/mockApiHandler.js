@@ -55,6 +55,46 @@ function parseBody(data) {
   return data;
 }
 
+function fileToDataUrl(file) {
+  if (!file) return Promise.resolve("");
+  if (typeof file === "string") return Promise.resolve(file);
+  if (typeof Blob !== "undefined" && file instanceof Blob) {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => resolve(String(reader.result || ""));
+      reader.onerror = () => reject(reader.error || new Error("Could not read photo"));
+      reader.readAsDataURL(file);
+    });
+  }
+  return Promise.resolve("");
+}
+
+function ensureVisitPhotos(visit) {
+  if (!visit) return [];
+  if (!Array.isArray(visit.photos)) visit.photos = [];
+  return visit.photos;
+}
+
+function nextDemoPhotoId(store) {
+  if (!store.nextPhotoId) {
+    const maxExisting = store.visits.reduce((max, visit) => {
+      const ids = (visit.photos ?? []).map((p) => Number(p.id) || 0);
+      return Math.max(max, ...ids, 0);
+    }, 0);
+    store.nextPhotoId = maxExisting + 1;
+  }
+  return store.nextPhotoId++;
+}
+
+function findPhotoInStore(store, photoId) {
+  for (const visit of store.visits) {
+    const photos = ensureVisitPhotos(visit);
+    const idx = photos.findIndex((p) => Number(p.id) === Number(photoId));
+    if (idx >= 0) return { visit, photos, idx, photo: photos[idx] };
+  }
+  return null;
+}
+
 function normalizePath(url = "") {
   let path = String(url || "").split("?")[0];
   try {
@@ -305,13 +345,25 @@ export async function handleMockRequest(config) {
     if (path === `patients/${patientId}`) {
       if (method === "get") {
         if (!patient) errorResponse("Patient not found", 404);
+        const formResponses =
+          store.formResponsesByPatient?.[patientId] ??
+          store.formResponsesByPatient?.[String(patientId)] ??
+          [];
+        const questionnaireResponse =
+          formResponses.find(
+            (r) =>
+              r.form?.code === "aesthetic_health_information_mm" ||
+              r.form?.code === "general_health_information",
+          ) ?? formResponses[0] ?? null;
         return jsonResponse({
           ...patient,
           visits: patientVisits,
           medical_history: store.medicalHistories[patientId] ?? null,
           medicalHistory: store.medicalHistories[patientId] ?? null,
-          formResponses: [],
-          form_responses: [],
+          formResponses,
+          form_responses: formResponses,
+          questionnaireResponse,
+          questionnaire_response: questionnaireResponse,
         });
       }
       if (method === "put") {
@@ -356,7 +408,11 @@ export async function handleMockRequest(config) {
       return jsonResponse(rows);
     }
     if (path === `patients/${patientId}/packages` && method === "get") {
-      return jsonResponse([]);
+      return jsonResponse(
+        store.patientPackagesByPatient?.[patientId] ??
+          store.patientPackagesByPatient?.[String(patientId)] ??
+          [],
+      );
     }
     if (path === `patients/${patientId}/lab-results` && method === "get") {
       return jsonResponse(demoLabResultsByPatient[patientId] ?? []);
@@ -461,16 +517,66 @@ export async function handleMockRequest(config) {
       return jsonResponse({ id: store.nextPaymentId++, visit_id: visitId, amount: 350000, status: "unpaid" });
     }
     if (path === `visits/${visitId}/consultation` && method === "get") {
-      return jsonResponse(demoConsultationsByVisit[visitId] ?? null);
+      return jsonResponse(
+        demoConsultationsByVisit[visitId] ??
+          demoConsultationsByVisit[String(visitId)] ??
+          visit?.consultation ??
+          null,
+      );
     }
     if (path === `visits/${visitId}/treatment` && method === "get") return jsonResponse(null);
     if (path === `visits/${visitId}/treatments` && method === "get") {
-      return jsonResponse(demoTreatmentsByVisit[visitId] ?? []);
+      return jsonResponse(
+        demoTreatmentsByVisit[visitId] ??
+          demoTreatmentsByVisit[String(visitId)] ??
+          visit?.treatments ??
+          [],
+      );
     }
     if (path === `visits/${visitId}/prescriptions` && method === "get") {
-      return jsonResponse(demoPrescriptionsByVisit[visitId] ?? []);
+      return jsonResponse(
+        demoPrescriptionsByVisit[visitId] ??
+          demoPrescriptionsByVisit[String(visitId)] ??
+          visit?.prescriptions ??
+          [],
+      );
     }
-    if (path === `visits/${visitId}/photos` && method === "get") return jsonResponse([]);
+    if (path === `visits/${visitId}/photos`) {
+      if (!visit) errorResponse("Visit not found", 404);
+      if (method === "get") {
+        return jsonResponse(ensureVisitPhotos(visit).map((p) => ({ ...p })));
+      }
+      if (method === "post") {
+        const file = body.photo ?? body.file ?? null;
+        const url = await fileToDataUrl(file);
+        if (!url) errorResponse("Photo file is required.", 422);
+        const type = String(body.type || "before").toLowerCase() === "after"
+          ? "after"
+          : "before";
+        const stage = ["consultation", "preparation", "treatment"].includes(
+          String(body.stage || ""),
+        )
+          ? String(body.stage)
+          : "consultation";
+        const photo = {
+          id: nextDemoPhotoId(store),
+          visit_id: visitId,
+          type,
+          stage,
+          body_area: body.body_area || "face",
+          side: body.side || null,
+          url,
+          thumbnail_url: url,
+          created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString(),
+          map_points_count: 0,
+          completed_map_points_count: 0,
+        };
+        ensureVisitPhotos(visit).unshift(photo);
+        visit.updated_at = new Date().toISOString();
+        return jsonResponse({ ...photo }, 201);
+      }
+    }
     if (path === `visits/${visitId}/lab-requests` && method === "get") {
       return jsonResponse(store.labRequests.filter((r) => r.visit_id === visitId));
     }
@@ -478,6 +584,31 @@ export async function handleMockRequest(config) {
     if (path.startsWith(`visits/${visitId}/`)) {
       const updated = updateVisitInStore(visitId, body);
       return jsonResponse(updated ?? visit);
+    }
+  }
+
+  const photoId = pathId(path, "photos");
+  if (photoId) {
+    if (path === `photos/${photoId}` && method === "delete") {
+      const found = findPhotoInStore(store, photoId);
+      if (!found) errorResponse("Photo not found", 404);
+      found.photos.splice(found.idx, 1);
+      found.visit.updated_at = new Date().toISOString();
+      return jsonResponse({ message: "Deleted" });
+    }
+    if (path === `photos/${photoId}/annotations` && method === "get") {
+      return jsonResponse([]);
+    }
+    if (path === `photos/${photoId}/annotations` && method === "post") {
+      return jsonResponse(
+        {
+          id: Date.now(),
+          photo_id: photoId,
+          annotation_data: body.annotation_data ?? body,
+          created_at: new Date().toISOString(),
+        },
+        201,
+      );
     }
   }
 

@@ -105,14 +105,59 @@ const EMPTY_FORM = {
 
 const sectionCardSx = {
   p: { xs: 1.5, sm: 2 },
-  borderRadius: 2,
+  borderRadius: 2.5,
   height: "100%",
+  bgcolor: "background.paper",
 };
 
 const fieldGridSx = {
   display: "grid",
   gridTemplateColumns: { xs: "1fr", sm: "repeat(2, minmax(0, 1fr))" },
   gap: 1.25,
+};
+
+const workspaceGridSx = {
+  display: "grid",
+  gridTemplateColumns: {
+    xs: "1fr",
+    lg: "minmax(0, 1.65fr) minmax(300px, 0.85fr)",
+  },
+  gap: { xs: 1.5, md: 2 },
+  alignItems: "start",
+};
+
+/** Scrollable sticky rail — avoid height:100% Paper so content is not clipped. */
+const stickyAsideSx = {
+  position: { lg: "sticky" },
+  top: { lg: 88 },
+  alignSelf: { lg: "start" },
+  display: "flex",
+  flexDirection: "column",
+  gap: { xs: 1.5, md: 2 },
+  width: "100%",
+  minWidth: 0,
+  minHeight: 0,
+  maxHeight: {
+    xs: "none",
+    lg: "calc(100vh - 104px)",
+  },
+  overflowX: "hidden",
+  overflowY: { xs: "visible", lg: "auto" },
+  overscrollBehavior: "contain",
+  WebkitOverflowScrolling: "touch",
+  pr: { lg: 0.5 },
+  pb: { lg: 1 },
+  // Keep wheel/trackpad scrolling inside this rail on desktop.
+  scrollbarGutter: "stable",
+};
+
+const asideCardSx = {
+  p: { xs: 1.5, sm: 2 },
+  borderRadius: 2.5,
+  height: "auto",
+  flexShrink: 0,
+  overflow: "visible",
+  bgcolor: "background.paper",
 };
 
 const QUESTIONNAIRE_FORM_CODE = "aesthetic_health_information_mm";
@@ -1091,7 +1136,7 @@ export default function ConsultationRoomPage() {
   }
 
   return (
-    <Container maxWidth="lg">
+    <Container maxWidth="xl" sx={{ pb: { xs: 12, md: 4 } }}>
       <Box
         sx={{
           width: "100%",
@@ -1109,80 +1154,104 @@ export default function ConsultationRoomPage() {
         <Paper
           variant="outlined"
           sx={{
-            p: { xs: 1.5, sm: 2 },
+            p: { xs: 1.25, sm: 1.5 },
             mb: 2,
-            borderRadius: 3,
-            display: "flex",
-            flexDirection: { xs: "column", sm: "row" },
-            justifyContent: "space-between",
-            alignItems: { xs: "stretch", sm: "center" },
-            gap: 1.5,
+            borderRadius: 2.5,
+            position: "sticky",
+            top: 0,
+            zIndex: 10,
+            bgcolor: "background.default",
+            boxShadow: 3,
           }}
         >
-          <Stack spacing={0.5}>
-            <Stack direction="row" spacing={1} flexWrap="wrap">
-              <Button
-                startIcon={<ArrowBackIcon />}
-                onClick={() => {
-                  if (!confirmDiscardIfNeeded()) return;
-                  navigate(visitHistoryPath);
-                }}
-                sx={{ alignSelf: "flex-start", px: 1.5 }}
-              >
-                Visit History
-              </Button>
-              <Button
-                variant="outlined"
-                onClick={() => {
-                  const patientId = visit?.patient_id ?? visit?.patient?.id;
-                  if (!patientId) return;
-                  if (!confirmDiscardIfNeeded()) return;
-                  navigate(`/patients/${patientId}`);
-                }}
-                sx={{ alignSelf: "flex-start", px: 1.5 }}
-              >
-                Patient Details
-              </Button>
+          <Stack
+            direction={{ xs: "column", md: "row" }}
+            spacing={1.25}
+            justifyContent="space-between"
+            alignItems={{ xs: "stretch", md: "center" }}
+          >
+            <Stack spacing={0.75} sx={{ minWidth: 0, flex: 1 }}>
+              <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
+                <Button
+                  startIcon={<ArrowBackIcon />}
+                  onClick={() => {
+                    if (!confirmDiscardIfNeeded()) return;
+                    navigate(visitHistoryPath);
+                  }}
+                  size="small"
+                >
+                  Visit History
+                </Button>
+                <Button
+                  variant="outlined"
+                  size="small"
+                  onClick={() => {
+                    const patientId = visit?.patient_id ?? visit?.patient?.id;
+                    if (!patientId) return;
+                    if (!confirmDiscardIfNeeded()) return;
+                    navigate(`/patients/${patientId}`);
+                  }}
+                >
+                  Patient Details
+                </Button>
+              </Stack>
+              <Box>
+                <Typography variant="h5" fontWeight={900} sx={{ lineHeight: 1.15 }}>
+                  Consultation Room
+                </Typography>
+                <Typography variant="body2" color="text.secondary">
+                  {patientName} · Visit #{visit.queue_number ?? visit.id} ·{" "}
+                  {dayjs(visit.visit_time ?? visit.created_at).format(
+                    "DD-MM-YYYY hh:mm",
+                  )}
+                </Typography>
+              </Box>
             </Stack>
-            <Box>
-              <Typography variant="h5" fontWeight={900}>
-                Consultation Room
-              </Typography>
-              <Typography variant="body2" color="text.secondary">
-                {patientName} · Visit #{visit.queue_number ?? visit.id} ·{" "}
-                {dayjs(visit.visit_time ?? visit.created_at).format(
-                  "YYYY-MM-DD HH:mm",
-                )}
-              </Typography>
-            </Box>
-          </Stack>
-          <Stack direction="row" spacing={1} flexWrap="wrap">
-            <Chip
-              label={visit?.follow_up ? "Follow-up" : "New complaint"}
-              color="info"
-              size="small"
-            />
-            <Chip
-              label={`${photos.length} photo(s)`}
-              variant="outlined"
-              size="small"
-            />
-            <Chip
-              label={`${plannedTreatments.length} treatment(s)`}
-              color="secondary"
-              size="small"
-              variant="outlined"
-            />
+
+            <Stack spacing={1} alignItems={{ xs: "stretch", md: "flex-end" }}>
+              <Stack direction="row" spacing={0.75} flexWrap="wrap" useFlexGap justifyContent="flex-end">
+                <Chip
+                  label={visit?.follow_up ? "Follow-up" : "New complaint"}
+                  color="info"
+                  size="small"
+                />
+                <Chip
+                  label={`${photos.length} photo(s)`}
+                  variant="outlined"
+                  size="small"
+                />
+                <Chip
+                  label={`${plannedTreatments.length} treatment(s)`}
+                  color="secondary"
+                  size="small"
+                  variant="outlined"
+                />
+              </Stack>
+              <Stack direction="row" spacing={1} justifyContent="flex-end">
+                <Button
+                  variant="outlined"
+                  onClick={() => {
+                    if (!confirmDiscardIfNeeded()) return;
+                    navigate(visitHistoryPath);
+                  }}
+                >
+                  Cancel
+                </Button>
+                <Button
+                  variant="contained"
+                  disabled={saving}
+                  onClick={handleSave}
+                  data-testid="consultation-room-save-structured"
+                >
+                  {saving ? "Saving..." : "Save Consultation"}
+                </Button>
+              </Stack>
+            </Stack>
           </Stack>
         </Paper>
 
-        <Box
-          sx={{
-            display: "grid",
-            gridTemplateColumns: { xs: "1fr", md: "1fr 1fr" },
-            gap: { xs: 1.5, md: 2 },
-          }}
-        >
+        <Box sx={workspaceGridSx}>
+          <Stack spacing={{ xs: 1.5, md: 2 }}>
           <Paper variant="outlined" sx={sectionCardSx}>
             <SectionTitle
               title="Consultation Summary"
@@ -1321,172 +1390,16 @@ export default function ConsultationRoomPage() {
             </Stack>
           </Paper>
 
-          <Paper variant="outlined" sx={sectionCardSx}>
-            <SectionTitle
-              title="Clinical References"
-              subtitle="Read-only context from current visit, history, packages and questionnaire records."
-            />
-            <Stack spacing={1}>
-              <Typography variant="body2">
-                <strong>Current check-in complaint:</strong>{" "}
-                {visit?.notes || "—"}
-              </Typography>
-              <Typography variant="body2">
-                <strong>Current visit follow-up:</strong>{" "}
-                {visit?.follow_up === true
-                  ? "Yes"
-                  : visit?.follow_up === false
-                    ? "No"
-                    : "—"}
-              </Typography>
-              <Typography variant="body2">
-                <strong>Medical history (medications):</strong>{" "}
-                {medicalHistory?.current_medications || "—"}
-              </Typography>
-              <Typography variant="body2">
-                <strong>Medical history (allergies):</strong>{" "}
-                {medicalHistory?.allergies || "—"}
-              </Typography>
-              <Typography variant="body2">
-                <strong>Purchased packages:</strong>{" "}
-                {patientPackages.length
-                  ? patientPackages
-                      .map(
-                        (pkg) =>
-                          pkg?.package?.name ||
-                          pkg?.name ||
-                          `Package #${pkg.id}`,
-                      )
-                      .join(", ")
-                  : "—"}
-              </Typography>
-              <Box
-                sx={{
-                  border: 1,
-                  borderColor: "divider",
-                  borderRadius: 2,
-                  p: 1.25,
-                  bgcolor: "action.hover",
-                }}
-              >
-                <Stack
-                  direction={{ xs: "column", sm: "row" }}
-                  justifyContent="space-between"
-                  spacing={0.5}
-                  sx={{ mb: 1 }}
-                >
-                  <Typography variant="body2" sx={{ fontWeight: 800 }}>
-                    Latest questionnaire response
-                  </Typography>
-                  <Typography variant="caption" color="text.secondary">
-                    {latestQuestionnaireResponse
-                      ? [
-                          latestQuestionnaireResponse.form?.definition?.name ??
-                            latestQuestionnaireResponse.form_definition?.name,
-                          latestQuestionnaireResponse.form?.version_number
-                            ? `v${latestQuestionnaireResponse.form.version_number}`
-                            : null,
-                          (latestQuestionnaireResponse.updated_at ??
-                          latestQuestionnaireResponse.created_at)
-                            ? dayjs(
-                                latestQuestionnaireResponse.updated_at ??
-                                  latestQuestionnaireResponse.created_at,
-                              ).format("D MMM YYYY")
-                            : null,
-                        ]
-                          .filter(Boolean)
-                          .join(" · ")
-                      : "Not found"}
-                  </Typography>
-                </Stack>
-                {latestQuestionnaireResponse ? (
-                  <Box
-                    sx={{
-                      display: "grid",
-                      gridTemplateColumns: {
-                        xs: "1fr",
-                        sm: "repeat(2, minmax(0, 1fr))",
-                      },
-                      gap: 1,
-                    }}
-                  >
-                    {QUESTIONNAIRE_REFERENCE_FIELDS.map(([key, label]) => (
-                      <Box key={key}>
-                        <Typography
-                          variant="caption"
-                          color="text.secondary"
-                          display="block"
-                        >
-                          {label}
-                        </Typography>
-                        <Typography variant="body2" sx={{ fontWeight: 650 }}>
-                          {formatReferenceValue(
-                            questionnaireReferenceData[key],
-                          )}
-                        </Typography>
-                      </Box>
-                    ))}
-                  </Box>
-                ) : (
-                  <Typography variant="caption" color="text.secondary">
-                    No intake questionnaire answer is linked to this patient
-                    yet.
-                  </Typography>
-                )}
-              </Box>
-              <Box>
-                <Typography variant="body2" sx={{ fontWeight: 600, mb: 0.5 }}>
-                  Previous visits/treatments
-                </Typography>
-                {priorVisits.length === 0 ? (
-                  <Typography variant="caption" color="text.secondary">
-                    No previous visits.
-                  </Typography>
-                ) : (
-                  <Stack spacing={0.5}>
-                    {priorVisits.map((pv) => {
-                      const tnames = (pv.treatments ?? [])
-                        .map((t) => t.name)
-                        .filter(Boolean)
-                        .join(", ");
-                      return (
-                        <Typography
-                          key={pv.id}
-                          variant="caption"
-                          color="text.secondary"
-                        >
-                          {dayjs(pv.visit_time ?? pv.created_at).format(
-                            "YYYY-MM-DD",
-                          )}{" "}
-                          · {pv.status ?? "—"} · {tnames || "No treatments"}
-                        </Typography>
-                      );
-                    })}
-                  </Stack>
-                )}
-              </Box>
-            </Stack>
-          </Paper>
-        </Box>
 
-        <Box
-          sx={{
-            mt: 2,
-            display: "grid",
-            gridTemplateColumns: "1fr",
-            gap: { xs: 1.5, md: 2 },
-          }}
-        >
-          <Paper variant="outlined" sx={sectionCardSx}>
-            <SectionTitle
-              title="Treatment"
-              subtitle="Select treatment, add custom treatment, and plan the treatment."
-            />
+            <Paper variant="outlined" sx={sectionCardSx}>
+              <SectionTitle
+                title="Treatment"
+                subtitle="Select treatment, add custom treatment, and plan the treatment."
+              />
             <Paper
               variant="outlined"
               sx={{
                 p: { xs: 1.25, sm: 2 },
-                mb: 2,
                 borderRadius: 2,
                 borderColor: "secondary.main",
                 bgcolor: (theme) =>
@@ -1621,9 +1534,12 @@ export default function ConsultationRoomPage() {
                 </Button>
               </Box>
             </Paper>
+
+            </Paper>
+
             <Paper
               variant="outlined"
-              sx={{ p: { xs: 1.25, sm: 1.5 }, borderRadius: 2, mb: 2 }}
+              sx={{ p: { xs: 1.25, sm: 1.5 }, borderRadius: 2 }}
             >
               <SectionTitle
                 title="Questionnaires & Consents"
@@ -1769,7 +1685,13 @@ export default function ConsultationRoomPage() {
                 ) : null}
               </Stack>
             </Paper>
-            <Stack spacing={1.5}>
+
+            <Paper variant="outlined" sx={sectionCardSx}>
+              <SectionTitle
+                title="Safety & Follow-up"
+                subtitle="Pregnancy, infection, allergies, medications, and next session."
+              />
+              <Stack spacing={1.5}>
               <FormGroup
                 row
                 sx={{
@@ -1858,14 +1780,311 @@ export default function ConsultationRoomPage() {
               <Typography variant="caption" color="text.secondary">
                 Next session date automatically follows follow-up date.
               </Typography>
+              </Stack>
+            </Paper>
+
+          </Stack>
+
+          <Box sx={stickyAsideSx}>
+            <Paper variant="outlined" sx={asideCardSx}>
+              <SectionTitle
+                title="Patient Context"
+                subtitle="Visit notes, history, packages, and questionnaire answers for reference."
+              />
+              <Stack spacing={1}>
+                <Typography variant="body2">
+                  <strong>Current check-in complaint:</strong>{" "}
+                  {visit?.notes || "—"}
+                </Typography>
+              <Typography variant="body2">
+                <strong>Current visit follow-up:</strong>{" "}
+                {visit?.follow_up === true
+                  ? "Yes"
+                  : visit?.follow_up === false
+                    ? "No"
+                    : "—"}
+              </Typography>
+              <Typography variant="body2">
+                <strong>Medical history (medications):</strong>{" "}
+                {medicalHistory?.current_medications || "—"}
+              </Typography>
+              <Typography variant="body2">
+                <strong>Medical history (allergies):</strong>{" "}
+                {medicalHistory?.allergies || "—"}
+              </Typography>
+              <Typography variant="body2">
+                <strong>Purchased packages:</strong>{" "}
+                {patientPackages.length
+                  ? patientPackages
+                      .map(
+                        (pkg) =>
+                          pkg?.package?.name ||
+                          pkg?.name ||
+                          `Package #${pkg.id}`,
+                      )
+                      .join(", ")
+                  : "—"}
+              </Typography>
+              <Box
+                sx={{
+                  border: 1,
+                  borderColor: "divider",
+                  borderRadius: 2,
+                  p: 1.25,
+                  bgcolor: "action.hover",
+                }}
+              >
+                <Stack
+                  direction={{ xs: "column", sm: "row" }}
+                  justifyContent="space-between"
+                  spacing={0.5}
+                  sx={{ mb: 1 }}
+                >
+                  <Typography variant="body2" sx={{ fontWeight: 800 }}>
+                    Latest questionnaire response
+                  </Typography>
+                  <Typography variant="caption" color="text.secondary">
+                    {latestQuestionnaireResponse
+                      ? [
+                          latestQuestionnaireResponse.form?.definition?.name ??
+                            latestQuestionnaireResponse.form_definition?.name,
+                          latestQuestionnaireResponse.form?.version_number
+                            ? `v${latestQuestionnaireResponse.form.version_number}`
+                            : null,
+                          (latestQuestionnaireResponse.updated_at ??
+                          latestQuestionnaireResponse.created_at)
+                            ? dayjs(
+                                latestQuestionnaireResponse.updated_at ??
+                                  latestQuestionnaireResponse.created_at,
+                              ).format("D MMM YYYY")
+                            : null,
+                        ]
+                          .filter(Boolean)
+                          .join(" · ")
+                      : "Not found"}
+                  </Typography>
+                </Stack>
+                {latestQuestionnaireResponse ? (
+                  <Box
+                    sx={{
+                      display: "grid",
+                      gridTemplateColumns: {
+                        xs: "1fr",
+                        sm: "repeat(2, minmax(0, 1fr))",
+                      },
+                      gap: 1,
+                    }}
+                  >
+                    {QUESTIONNAIRE_REFERENCE_FIELDS.map(([key, label]) => (
+                      <Box key={key}>
+                        <Typography
+                          variant="caption"
+                          color="text.secondary"
+                          display="block"
+                        >
+                          {label}
+                        </Typography>
+                        <Typography variant="body2" sx={{ fontWeight: 650 }}>
+                          {formatReferenceValue(
+                            questionnaireReferenceData[key],
+                          )}
+                        </Typography>
+                      </Box>
+                    ))}
+                  </Box>
+                ) : (
+                  <Typography variant="caption" color="text.secondary">
+                    No intake questionnaire answer is linked to this patient
+                    yet.
+                  </Typography>
+                )}
+              </Box>
+              <Box>
+                <Typography variant="body2" sx={{ fontWeight: 600, mb: 0.5 }}>
+                  Previous visits/treatments
+                </Typography>
+                {priorVisits.length === 0 ? (
+                  <Typography variant="caption" color="text.secondary">
+                    No previous visits.
+                  </Typography>
+                ) : (
+                  <Stack spacing={0.5}>
+                    {priorVisits.map((pv) => {
+                      const tnames = (pv.treatments ?? [])
+                        .map((t) => t.name)
+                        .filter(Boolean)
+                        .join(", ");
+                      return (
+                        <Typography
+                          key={pv.id}
+                          variant="caption"
+                          color="text.secondary"
+                        >
+                          {dayjs(pv.visit_time ?? pv.created_at).format(
+                            "DD-MM-YYYY",
+                          )}{" "}
+                          · {pv.status ?? "—"} · {tnames || "No treatments"}
+                        </Typography>
+                      );
+                    })}
+                  </Stack>
+                )}
+              </Box>
             </Stack>
           </Paper>
-        </Box>
 
         <Paper
           variant="outlined"
           sx={{
-            mt: 2,
+            ...asideCardSx,
+            p: 0,
+            borderRadius: 2.5,
+            overflow: "visible",
+          }}
+        >
+          <Tabs
+            value={tab}
+            onChange={(_, next) => setTab(next)}
+            variant="scrollable"
+            allowScrollButtonsMobile
+            sx={{
+              px: { xs: 0.5, sm: 1 },
+              borderBottom: "1px solid",
+              borderColor: "divider",
+            }}
+          >
+            <Tab label="Past consults" />
+            <Tab label="Treatments" />
+            <Tab label="Notes" />
+          </Tabs>
+          <Box sx={{ p: { xs: 1.5, sm: 2 } }}>
+            {tab === 0 &&
+              (previousConsultations.length === 0 ? (
+                <Typography variant="body2" color="text.secondary">
+                  No previous consultations available.
+                </Typography>
+              ) : (
+                <Stack spacing={1}>
+                  {previousConsultations.map(
+                    ({ visit: pv, consultation: pc }) => (
+                      <Typography
+                        key={`pc-${pv.id}`}
+                        variant="body2"
+                        color="text.secondary"
+                      >
+                        {dayjs(pv.visit_time ?? pv.created_at).format(
+                          "DD-MM-YYYY",
+                        )}{" "}
+                        · Primary concern: {pc?.chief_complaint || "—"} ·
+                        Assessment:{" "}
+                        {pc?.diagnosis ||
+                          pc?.diagnosis_structured?.primary ||
+                          pc?.summary ||
+                          "—"}
+                      </Typography>
+                    ),
+                  )}
+                </Stack>
+              ))}
+            {tab === 1 &&
+              (priorVisits.length === 0 ? (
+                <Typography variant="body2" color="text.secondary">
+                  No treatment history available.
+                </Typography>
+              ) : (
+                <Stack spacing={1}>
+                  {priorVisits.map((pv) => {
+                    const tnames = (pv.treatments ?? [])
+                      .map((t) => t.name)
+                      .filter(Boolean)
+                      .join(", ");
+                    return (
+                      <Typography
+                        key={pv.id}
+                        variant="body2"
+                        color="text.secondary"
+                      >
+                        {dayjs(pv.visit_time ?? pv.created_at).format(
+                          "DD-MM-YYYY",
+                        )}{" "}
+                        · {pv.status ?? "—"} · {tnames || "No treatments"}
+                      </Typography>
+                    );
+                  })}
+                </Stack>
+              ))}
+            {tab === 2 && (
+              <Stack spacing={1.5}>
+                <Box>
+                  <Typography
+                    variant="caption"
+                    color="text.secondary"
+                    sx={{ mb: 0.75, display: "block", fontWeight: 700 }}
+                  >
+                    Notes from past consultations
+                  </Typography>
+                  {previousConsultations.filter((row) =>
+                    String(row.consultation?.notes ?? "").trim(),
+                  ).length === 0 ? (
+                    <Typography variant="body2" color="text.secondary">
+                      No prior consultation notes on file.
+                    </Typography>
+                  ) : (
+                    <Stack spacing={1}>
+                      {previousConsultations
+                        .filter((row) =>
+                          String(row.consultation?.notes ?? "").trim(),
+                        )
+                        .map(({ visit: pv, consultation: pc }) => (
+                          <Box
+                            key={`note-${pv.id}`}
+                            sx={{
+                              p: 1,
+                              borderRadius: 1.5,
+                              border: "1px solid",
+                              borderColor: "divider",
+                              bgcolor: "action.hover",
+                            }}
+                          >
+                            <Typography
+                              variant="caption"
+                              color="text.secondary"
+                              display="block"
+                              sx={{ mb: 0.25 }}
+                            >
+                              {dayjs(pv.visit_time ?? pv.created_at).format(
+                                "DD-MM-YYYY hh:mm",
+                              )}
+                            </Typography>
+                            <Typography variant="body2">
+                              {pc.notes}
+                            </Typography>
+                          </Box>
+                        ))}
+                    </Stack>
+                  )}
+                </Box>
+                <LabeledTextField
+                  title="Additional Notes (this visit)"
+                  fullWidth
+                  multiline
+                  minRows={4}
+                  size="small"
+                  value={form.notes}
+                  onChange={onField("notes")}
+                />
+              </Stack>
+            )}
+          </Box>
+        </Paper>
+
+          </Box>
+        </Box>
+
+        <Stack spacing={{ xs: 1.5, md: 2 }} sx={{ mt: 2 }}>
+        <Paper
+          variant="outlined"
+          sx={{
             p: { xs: 1.5, sm: 2 },
             borderRadius: 3,
             borderWidth: 2,
@@ -2054,96 +2273,14 @@ export default function ConsultationRoomPage() {
           />
         </Paper>
 
-        <Paper
-          variant="outlined"
-          sx={{ mt: 2, borderRadius: 3, overflow: "hidden" }}
-        >
-          <Tabs
-            value={tab}
-            onChange={(_, next) => setTab(next)}
-            variant="scrollable"
-            allowScrollButtonsMobile
+          <Box
             sx={{
-              px: { xs: 0.5, sm: 1 },
-              borderBottom: "1px solid",
-              borderColor: "divider",
+              display: "grid",
+              gridTemplateColumns: { xs: "1fr", md: "1fr 1fr" },
+              gap: { xs: 1.5, md: 2 },
             }}
           >
-            <Tab label="Previous Consultations" />
-            <Tab label="Treatment History" />
-            <Tab label="Notes" />
-          </Tabs>
-          <Box sx={{ p: { xs: 1.5, sm: 2 } }}>
-            {tab === 0 &&
-              (previousConsultations.length === 0 ? (
-                <Typography variant="body2" color="text.secondary">
-                  No previous consultations available.
-                </Typography>
-              ) : (
-                <Stack spacing={1}>
-                  {previousConsultations.map(
-                    ({ visit: pv, consultation: pc }) => (
-                      <Typography
-                        key={`pc-${pv.id}`}
-                        variant="body2"
-                        color="text.secondary"
-                      >
-                        {dayjs(pv.visit_time ?? pv.created_at).format(
-                          "YYYY-MM-DD",
-                        )}{" "}
-                        · Primary concern: {pc?.chief_complaint || "—"} ·
-                        Assessment:{" "}
-                        {pc?.diagnosis ||
-                          pc?.diagnosis_structured?.primary ||
-                          pc?.summary ||
-                          "—"}
-                      </Typography>
-                    ),
-                  )}
-                </Stack>
-              ))}
-            {tab === 1 &&
-              (priorVisits.length === 0 ? (
-                <Typography variant="body2" color="text.secondary">
-                  No treatment history available.
-                </Typography>
-              ) : (
-                <Stack spacing={1}>
-                  {priorVisits.map((pv) => {
-                    const tnames = (pv.treatments ?? [])
-                      .map((t) => t.name)
-                      .filter(Boolean)
-                      .join(", ");
-                    return (
-                      <Typography
-                        key={pv.id}
-                        variant="body2"
-                        color="text.secondary"
-                      >
-                        {dayjs(pv.visit_time ?? pv.created_at).format(
-                          "YYYY-MM-DD",
-                        )}{" "}
-                        · {pv.status ?? "—"} · {tnames || "No treatments"}
-                      </Typography>
-                    );
-                  })}
-                </Stack>
-              ))}
-            {tab === 2 && (
-              <LabeledTextField
-                title="Additional Notes"
-                fullWidth
-                multiline
-                minRows={4}
-                size="small"
-                value={form.notes}
-                onChange={onField("notes")}
-              />
-            )}
-          </Box>
-        </Paper>
-
-        <Paper variant="outlined" sx={{ mt: 2, ...sectionCardSx }}>
+        <Paper variant="outlined" sx={sectionCardSx}>
           <SectionTitle
             title="Prescribe Medicine"
             subtitle="Add medicines for this consultation. Billable items will appear on the invoice."
@@ -2156,8 +2293,7 @@ export default function ConsultationRoomPage() {
             onNotesChange={setPrescriptionNotes}
           />
         </Paper>
-
-        <Paper variant="outlined" sx={{ mt: 2, ...sectionCardSx }}>
+        <Paper variant="outlined" sx={sectionCardSx}>
           <SectionTitle
             title="Consultation Fee"
             subtitle="Finalize consultation fee settings before saving."
@@ -2203,23 +2339,26 @@ export default function ConsultationRoomPage() {
           </Stack>
         </Paper>
 
+          </Box>
+        </Stack>
+
         <Paper
           variant="outlined"
           sx={{
             mt: 2,
             p: { xs: 1.25, sm: 1.5 },
-            borderRadius: 3,
+            borderRadius: 2.5,
             position: { md: "sticky" },
             bottom: { md: 12 },
             zIndex: 2,
             bgcolor: "background.default",
-            opacity: 1,
             boxShadow: 3,
+            display: { xs: "block", lg: "none" },
           }}
         >
           <Stack
             direction={{ xs: "column", sm: "row" }}
-            spacing={2}
+            spacing={1.5}
             justifyContent="space-between"
           >
             <Button
@@ -2237,7 +2376,6 @@ export default function ConsultationRoomPage() {
               variant="contained"
               disabled={saving}
               onClick={handleSave}
-              data-testid="consultation-room-save-structured"
               size="large"
               sx={{ minWidth: { sm: 180 } }}
             >
@@ -2245,6 +2383,7 @@ export default function ConsultationRoomPage() {
             </Button>
           </Stack>
         </Paper>
+
         <Dialog
           open={Boolean(photoDialog)}
           onClose={() => setPhotoDialog(null)}
@@ -2279,6 +2418,8 @@ export default function ConsultationRoomPage() {
             ) : null}
           </DialogContent>
         </Dialog>
+
+
       </Box>
     </Container>
   );
